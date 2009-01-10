@@ -6,7 +6,7 @@ import Numeric
 data Token
   = CharTok Char
   | StringTok String
-  | NumberTok Int
+  | NumberTok Double
   | IdentTok String
   | Bracket Char
   | NL | WS
@@ -14,15 +14,22 @@ data Token
   | Indent | Unindent
   deriving (Eq)
 
+-- A parser which is indentation aware, with current indentation as state.
+type IndentParser = GenParser Char String
+
 -- Begin with no indentation as parser state
 -- Add a new line to the input so every line ends with a new line.
+tokenizer :: SourceName -> String -> Either ParseError [(SourcePos, Token)]
 tokenizer fileName input = runParser tokenize "" fileName (input ++ "\n")
 
+tokenize          :: IndentParser [(SourcePos, Token)]
 tokenize          = indentedLines <* eof
 
--- Construct the result values :: (SourcePos, Token)
+withPos           :: IndentParser Token -> IndentParser (SourcePos, Token)
 withPos p         = (,) <$> getPosition <*> p
+
 -- for debugging
+-- withPos           :: IndentParser Token -> IndentParser (SourcePos, String, a)
 -- withPos p         = (,,) <$> getPosition <*> getState <*> p
 
 indentedLines     = concat <$> many (emptyLine <|> indentedLine) <?> "lines"
@@ -43,7 +50,7 @@ moreIndentation   = withPos (
                       Indent <$ (updateState . (flip (++)) =<< many1 (oneOf " \t"))
                     ) <?> "indent"
 
-afterIndentation  = (actualTokens <* lineComment) <<:> newLine
+afterIndentation  = (actualTokens <* optional lineComment) <<:> newLine
 actualTokens      = option [] (
                       nonIndentToken <:>> many (nonIndentToken <|> wsToken)
                     ) <?> "tokens"
@@ -73,18 +80,22 @@ p_escape          = choice (zipWith decode "bnfrt\\\"/" "\b\n\f\r\t\\\"/")
 p_unicode         = char 'u' *> (decode <$> count 4 hexDigit)
                       where decode x = toEnum code where ((code,_):_) = readHex x
                       
-numberLit         = read <$> (string "0" <|> oneOf ['1'..'9'] <:>> many (oneOf ['0'..'9']))
+numberLit         = read <$> integerPart <++> option [] fractionalPart <++> option [] exponentPart
+numbers           = many (oneOf ['0'..'9'])
+integerPart       = string "0" <|> oneOf ['1'..'9'] <:>> numbers
+fractionalPart    = char '.' <:>> numbers
+exponentPart      = char 'e' <:>> option [] (string "+" <|> string "-") <++> integerPart
 
-identifier        = (:) <$> identStartChar <*> many identChar <|> many1 operatorChar <|> string "?"
+identifier        = choice [identStartChar <:>> many identChar, many1 operatorChar, string "?"]
 identStartChar    = oneOf (['a'..'z'] ++ ['A'..'Z'] ++ "_$")
 identChar         = noneOf "(){}[] \t\n\v,;'\".#"
 operatorChar      = oneOf "!@%^&*/-+=|<>:`~"
 
-lineComment       = option [] (string "#" <* many (noneOf "\n")) <?> "line comment"
+lineComment       = string "#" <* many (noneOf "\n") <?> "line comment"
 
-l <:>> r = (:) <$> l <*> r
-l <<:> r = l <++> ((:[]) <$> r)
-l <++> r = (++) <$> l <*> r
+(<:>>) = liftA2 (:)
+(<++>) = liftA2 (++)
+(<<:>) = liftA2 append where append l r = l ++ [r]
 
 instance Show Token where
   show (CharTok c)    = show c
