@@ -1,6 +1,7 @@
 module Moiell.Tokenizer (tokenizer, Token(..)) where
 
 import ApplicativeParsec
+import Data.Char
 import Numeric
 
 data Token
@@ -68,23 +69,32 @@ nonIndentToken    = withPos (choice [
                       , Dot       <$  char '.'
                       ]) <?> "token"
 
-stringLit         = between (char '"') (char '"') (
-                      many (escChar <|> noneOf "\"\\")
-                    ) <?> "string literal"
-charLit           = between (char '\'') (char '\'') (
-                      escChar <|> noneOf "\'\\"
-                    ) <?> "character literal"
-escChar           = char '\\' *> (p_escape <|> p_unicode)
-p_escape          = choice (zipWith decode "bnfrt\\\"/" "\b\n\f\r\t\\\"/")
-                      where decode c r = r <$ char c
-p_unicode         = char 'u' *> (decode <$> count 4 hexDigit)
-                      where decode x = toEnum code where ((code,_):_) = readHex x
+charLit           = between (char '\'') (char '\'') (p_char '\'')
+stringLit         = between (char '"') (char '"') (many $ p_char '"')
+p_char delim      =  (char '\\' >> p_esc)
+                 <|> (satisfy (\x -> x /= delim && x /= '\\'))
+
+p_esc             =  ('"'   <$ char '"')
+                 <|> ('\\'  <$ char '\\')
+                 <|> ('/'   <$ char '/')
+                 <|> ('\b'  <$ char 'b')
+                 <|> ('\f'  <$ char 'f')
+                 <|> ('\n'  <$ char 'n')
+                 <|> ('\r'  <$ char 'r')
+                 <|> ('\t'  <$ char 't')
+                 <|> (char 'u' *> p_uni)
+                 <?> "escape character"
+
+p_uni             = check =<< count 4 (satisfy isHexDigit)
+          where check x | code <= max_char  = pure (toEnum code)
+                        | otherwise         = empty
+                  where code      = fst $ head $ readHex x
+                        max_char  = fromEnum (maxBound :: Char)
                       
-numberLit         = read <$> integerPart <++> option [] fractionalPart <++> option [] exponentPart
-numbers           = many (oneOf ['0'..'9'])
-integerPart       = string "0" <|> oneOf ['1'..'9'] <:>> numbers
-fractionalPart    = char '.' <:>> numbers
-exponentPart      = char 'e' <:>> option [] (string "+" <|> string "-") <++> integerPart
+numberLit         = do s <- getInput
+                       case readSigned readFloat s of
+                         [(n,s1)] -> n <$ setInput s1
+                         _        -> empty
 
 identifier        = choice [identStartChar <:>> many identChar, many1 operatorChar, string "?"]
 identStartChar    = oneOf (['a'..'z'] ++ ['A'..'Z'] ++ "_$")
