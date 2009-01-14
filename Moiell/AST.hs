@@ -1,4 +1,4 @@
-module Moiell.AST (AST, AST1(..)) where
+module Moiell.AST where
 
 import Data.List (intersperse)
 
@@ -11,7 +11,33 @@ data AST1
   | CharLit Char
   | StringLit String
   deriving (Eq)
-  
+
+bracketPostfix :: AST -> AST -> AST
+bracketPostfix a [App [Brackets '(' ')' _] arg] = mkApp a arg
+bracketPostfix a [App [Brackets '[' ']' _] arg] = mkInfixApp [Ident "Filter"] a arg
+bracketPostfix a [App [Brackets l r _] arg] = mkInfixApp [Brackets l r True] a arg
+
+-- Resolve ident(...), ident[...] and ident{...} parsing ambiguity
+mkPrefixApp :: AST -> AST -> AST
+mkPrefixApp op@[Ident _] arg@[App [Brackets _ _ _] _] = bracketPostfix op arg
+mkPrefixApp op           arg                          = mkApp op arg
+
+mkInfixApp :: AST -> AST -> AST -> AST
+mkInfixApp [Ident ","]  l       r = l ++ r
+mkInfixApp [Ident "="] [l1,l2] r = 
+  mkInfixApp [Ident "="] [l1] (mkApp [Ident "Head"] r) ++
+  mkInfixApp [Ident "="] [l2] (mkApp [Ident "Tail"] r)
+mkInfixApp [Ident "=>"] l       r = mkApp [Brackets '(' ')' False] (mkInfixApp [Ident "="] l [Ident "_"] ++ r)
+mkInfixApp [Ident "->"] l       r = mkApp [Ident "Each"          ] (mkInfixApp [Ident "="] l [Ident "_"] ++ r)
+mkInfixApp op           l       r = mkApp (mkApp op l) r
+
+mkApp                 :: AST -> AST -> AST
+mkApp op arg          = [App op arg]
+mkBracketsApp         :: Char -> Char -> AST -> AST
+mkBracketsApp l r arg = mkApp [Brackets l r False] arg
+mkPostfixApp          :: AST -> Maybe AST -> AST
+mkPostfixApp arg      = maybe arg (mkInfixApp [Ident "*"] arg)
+
 instance Show AST1 where
   show (Ident s) = s
   show (NumberLit i) = show i

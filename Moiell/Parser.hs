@@ -7,6 +7,8 @@ import ApplicativeParsec
 type TokenParser a = GenParser (SourcePos, Token) String a
 type ParserForAST = TokenParser AST
 
+main = parseFile "test.moi"
+
 parseFile           :: SourceName -> IO (Either ParseError AST)
 parseFile fileName  = parser fileName <$> readFile fileName
 
@@ -59,26 +61,6 @@ optUnindent         = [] <$ optional (simpleToken Unindent <* simpleToken NL)
 inWS, inOptWS :: ParserForAST -> ParserForAST
 inWS                = between (simpleToken WS) (simpleToken WS <|> simpleToken NL)
 inOptWS             = between (optionMaybe (simpleToken WS)) (optionMaybe (simpleToken WS))
-
-bracketPostfix :: AST -> AST -> AST
-bracketPostfix a [App [Brackets '(' ')' _] arg] = [App a arg]
-bracketPostfix a [App [Brackets l r _] arg] = [App [App [Brackets l r True] a] arg]
-
--- Resolve ident(...), ident[...] and ident{...} parsing ambiguity
-mkPrefixApp :: AST -> AST -> AST
-mkPrefixApp op@[Ident _] arg@[App [Brackets _ _ _] _] = bracketPostfix op arg
-mkPrefixApp op           arg                          = mkApp op arg
-
-mkInfixApp :: AST -> AST -> AST -> AST
-mkInfixApp [Ident ","] = (++)
-mkInfixApp op          = mkApp . (mkApp op)
-
-mkApp                 :: AST -> AST -> AST
-mkApp op arg          = [App op arg]
-mkBracketsApp         :: Char -> Char -> AST -> AST
-mkBracketsApp l r arg = [App [Brackets l r False] arg]
-mkPostfixApp          :: AST -> Maybe AST -> AST
-mkPostfixApp arg      = maybe arg (mkApp [App [Ident "*"] arg])
 
 mmaybe                :: (Alternative m, Monad m) => m a -> m b -> (a -> m b) -> m b
 mmaybe p a f          = optional p >>= maybe a f

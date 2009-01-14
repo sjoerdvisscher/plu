@@ -10,8 +10,6 @@
 (
   "Fibonacci:"
 
-  ?Tail = ?x,?xs => xs
-
   ?zipWith = ?op ->
     ?x,?xs => ?y,?ys =>
       x + y
