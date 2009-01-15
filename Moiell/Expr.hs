@@ -6,44 +6,53 @@ import Data.Monoid
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-data Env = Env { bound :: Map.Map String Expr, free :: Set.Set String }
+data Env = Env { getMap :: Map.Map String (Maybe Expr) } deriving (Eq, Show)
 
 instance Monoid Env where
-  mempty = Env Map.empty Set.empty
-  Env lBound lFree `mappend` Env rBound rFree =
-    Env bound free
-      where
-        bound = lBound `Map.union` rBound
-        free  = lFree `Set.union` rFree `Set.difference` Map.keysSet bound
+  mempty = Env Map.empty
+  Env lMap `mappend` Env rMap = Env (Map.unionWith mappend lMap rMap)
 
 type Expr = [Expr1]
 data Expr1 
-  = Scope Env Expr 
+  = Scope (Map.Map String Expr) Expr 
   | AppExpr Expr Expr
+  | VarExpr String
   | IdtExpr String
   | StrExpr String
   | ChrExpr Char
   | NumExpr Double
+  deriving (Eq, Show)
 
-data EnvExpr = EnvExpr { env :: Env, expr :: Expr }
+data EnvExpr = EnvExpr { env :: Env, expr :: Expr } deriving (Eq, Show)
 
 instance Monoid EnvExpr where
   mempty = EnvExpr mempty mempty
   EnvExpr lEnv lExpr `mappend` EnvExpr rEnv rExpr =
     EnvExpr (lEnv `mappend` rEnv) (lExpr `mappend` rExpr)
 
-ast2Expr (StringLit s) = EnvExpr mempty [StrExpr s]
-ast2Expr (CharLit c)   = EnvExpr mempty [ChrExpr c]
-ast2Expr (NumberLit x) = EnvExpr mempty [NumExpr x]
-ast2Expr (Ident i)     = EnvExpr mempty { free = Set.singleton i } [IdtExpr i]
+ast2Expr xs = mconcat (map ast12Expr xs)
 
-ast2Expr (App [App [Ident "="] [App [Ident "?"] [Ident i]]] r) = EnvExpr env []
-  where
-    EnvExpr rEnv rExprs = mconcat (map ast2Expr r)
-    env = insert i rExprs rEnv
+ast12Expr (StringLit s) = EnvExpr mempty [StrExpr s]
+ast12Expr (CharLit c)   = EnvExpr mempty [ChrExpr c]
+ast12Expr (NumberLit x) = EnvExpr mempty [NumExpr x]
+ast12Expr (                 Ident i ) = EnvExpr (Env (Map.singleton i Nothing)) [VarExpr i]
+ast12Expr (App [Ident "?"] [Ident i]) = EnvExpr (Env (Map.singleton i Nothing)) [IdtExpr i]
+ast12Expr (App [Brackets _ _ _] arg) = EnvExpr (Env frees) [Scope bounds argExprs] where
+  EnvExpr (Env argEnv) argExprs = ast2Expr arg
+  (frees, bounds') = Map.partition (== Nothing) argEnv
+  bounds = Map.mapMaybe id bounds'
 
-ast2Expr (App ops args) = EnvExpr env [AppExpr opExprs argExprs]
+ast12Expr (App [App [Ident "="] l] r) = EnvExpr (Env env) []
   where
-    EnvExpr opEnv opExprs = mconcat (map ast2Expr ops)
-    EnvExpr argEnv argExprs = mconcat (map ast2Expr args)
+    EnvExpr lEnv lExprs = ast2Expr l
+    EnvExpr rEnv rExprs = ast2Expr r
+    Env map = lEnv `mappend` rEnv
+    env = assign lExprs rExprs map
+    assign [IdtExpr i]      r env = Map.insert i (Just r) env
+    assign ((IdtExpr i):xs) r env = assign xs [AppExpr [IdtExpr "Tail"] r] (Map.insert i (Just [AppExpr [IdtExpr "Head"] r]) env)
+
+ast12Expr (App ops args) = EnvExpr env [AppExpr opExprs argExprs]
+  where
+    EnvExpr opEnv opExprs = ast2Expr ops
+    EnvExpr argEnv argExprs = ast2Expr args
     env = opEnv `mappend` argEnv
