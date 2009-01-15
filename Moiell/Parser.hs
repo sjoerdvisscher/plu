@@ -1,4 +1,4 @@
-module Moiell.Parser (parser) where
+module Moiell.Parser (parser, parseFile, parseString) where
 
 import Moiell.AST
 import Moiell.Tokenizer
@@ -6,8 +6,6 @@ import ApplicativeParsec
 
 type TokenParser a = GenParser (SourcePos, Token) String a
 type ParserForAST = TokenParser AST
-
-main = parseFile "test.moi"
 
 parseFile           :: SourceName -> IO (Either ParseError AST)
 parseFile fileName  = parser fileName <$> readFile fileName
