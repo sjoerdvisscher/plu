@@ -2,6 +2,8 @@ module Moiell.Tokenizer (tokenizer, Token(..)) where
 
 import ApplicativeParsec
 import Numeric
+import qualified Data.ByteString as B
+import qualified Data.String.UTF8 as U
 
 data Token
   = CharTok Char
@@ -15,12 +17,12 @@ data Token
   deriving (Eq)
 
 -- A parser which is indentation aware, with current indentation as state.
-type IndentParser = GenParser Char String
+type IndentParser = Parsec (U.UTF8 B.ByteString) String
 
 -- Begin with no indentation as parser state
 -- Add a new line to the input so every line ends with a new line.
-tokenizer :: SourceName -> String -> Either ParseError [(SourcePos, Token)]
-tokenizer fileName input = runParser tokenize "" fileName (input ++ "\n")
+--tokenizer :: SourceName -> String -> Either ParseError [(SourcePos, Token)]
+tokenizer fileName input = runParser tokenize "" fileName input
 
 tokenize          :: IndentParser [(SourcePos, Token)]
 tokenize          = indentedLines <* eof

@@ -3,17 +3,21 @@ module Moiell.Parser (parser, parseFile, parseString) where
 import Moiell.AST
 import Moiell.Tokenizer
 import ApplicativeParsec
+import qualified Data.ByteString as B
+import qualified Data.String.UTF8 as U
 
-type TokenParser a = GenParser (SourcePos, Token) String a
+type TokenParser a = Parsec [(SourcePos, Token)] String a
 type ParserForAST = TokenParser AST
 
 parseFile           :: SourceName -> IO (Either ParseError AST)
-parseFile fileName  = parser fileName <$> readFile fileName
+parseFile fileName  = do
+  bs <- B.readFile fileName
+  return $ parser fileName (U.fromRep $ B.snoc bs 10)
 
 parseString         :: String -> Either ParseError AST
-parseString         = parser "(unknown)"
+parseString s       = parser "(unknown)" (U.fromString (s ++ "\n"))
 
-parser              :: SourceName -> String -> Either ParseError AST
+parser              :: SourceName -> (U.UTF8 B.ByteString) -> Either ParseError AST
 parser fileName     = tokenizer fileName >=> runParser moiellProgram "" ""
 
 moiellProgram       :: ParserForAST

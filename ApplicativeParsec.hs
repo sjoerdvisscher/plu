@@ -1,24 +1,20 @@
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
+{-# OPTIONS -fglasgow-exts -XUndecidableInstances #-}  
 module ApplicativeParsec
     (
       module Control.Applicative
-    , module Text.ParserCombinators.Parsec
+    , module Text.Parsec
     , module Control.Monad.Error
     ) where
 
 import Control.Applicative
 import Control.Monad (MonadPlus(..), ap)
 -- Hide a few names that are provided by Applicative.
-import Text.ParserCombinators.Parsec hiding (many, optional, (<|>))
+import Text.Parsec hiding (many, optional, (<|>))
 import Control.Monad.Error
+import qualified Data.String.UTF8 as U
 
--- The Applicative instance for every Monad looks like this.
-instance Applicative (GenParser s a) where
-    pure  = return
-    (<*>) = ap
-
--- The Alternative instance for every MonadPlus looks like this.
-instance Alternative (GenParser s a) where
-    empty = mzero
-    (<|>) = mplus
+instance (Monad m, U.UTF8Bytes string index) => Stream (U.UTF8 string) m Char where
+    uncons = return . U.uncons
     
 instance Error ParseError

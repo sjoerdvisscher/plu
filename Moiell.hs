@@ -56,6 +56,6 @@ main2 = do
   (Right ast) <- parseFile "test.moi"
   print $ ast2Expr ast
   
-main3 = case (parseString "(?x, ?xs = 3, 4; xs + x)") of
+main3 = case (parseString "(?x, ?xs = 3, 4; ?x = 5; xs + x; \"ß\")") of
   (Right ast) -> ast2Expr ast
   
