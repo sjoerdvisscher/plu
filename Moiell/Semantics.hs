@@ -42,7 +42,7 @@ instance MonadPlus Stream where
 instance MonadReader TEnv Stream where
   ask       = Str $ \s -> Yield (env s) empty s
   local f c = Str $ \s -> restoreEnv s $ eval s{ env = f (env s) } c where
-    restoreEnv s y@(Yield _ _ _) = y
+    restoreEnv s (Yield x sa s1) = Yield x (compAp (restoreEnv s) sa) s1
     restoreEnv s (Done s1)       = Done s1 { env = env s }
     restoreEnv s (Error e s1)    = Error e s1 { env = env s }
 
@@ -74,14 +74,34 @@ instance Show Value where
   show (C c) = [c]
   show (O o) = "{Object}"
 
+addLocals localEnv = local (\parentEnv -> parentEnv `Map.union` localEnv)
+addLocal i s = addLocals (Map.singleton i s)
+
 lookupVar i = do
   env <- ask
-  fromJust (Map.lookup i env)
+  case Map.lookup i env of
+    Just x -> x
+    Nothing -> fail ("Undeclared variable: " ++ i)
 
+apply ops args = do
+  val <- ops
+  case val of
+    O (props, expr) -> addLocals props $ addLocal "_" args expr
+    x               -> fail ("Cannot apply a non-object: " ++ show x)
 
+object props val = pure $ O (props, val)
 
+globalEnv = Map.fromList [
+    ("Each", object Map.empty eachS)
+  ]
 
+eachS = do
+  val <- lookupVar "_"
+  case val of
+    O (props, expr) -> object Map.empty (pure $ N 30) --addLocals props $ addLocal "_" (pure a) expr)
+    x               -> fail ("Cannot apply a non-object: " ++ show x)
 
+{-
 eachS = fmap return
     
 splitS :: Stream a -> Stream (Stream a, Stream a)
@@ -139,5 +159,4 @@ liftS2 f aStr bStr = do
 (*-*)  = liftN2 (-)
 (***)  = liftN2 (*)
 (*++*)  = liftS2 (++)
-
-globalEnv = Map.fromList []
+-}

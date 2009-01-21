@@ -18,7 +18,6 @@ instance Monoid Env where
 type Expr = [Expr1]
 data Expr1 
   = ObjExpr (Map.Map String Expr) Expr 
-  | EvlExpr Expr
   | AppExpr Expr Expr
   | VarExpr String
   | IdtExpr String
@@ -69,7 +68,7 @@ mkObject arg = EnvExpr (Env frees) [ObjExpr bounds argExprs] where
   (frees, bounds') = Map.partition (== Nothing) argEnv
   bounds = Map.mapMaybe id bounds'
 
-lower (EnvExpr env expr) = EnvExpr env [EvlExpr expr]
+lower (EnvExpr env expr) = EnvExpr env [AppExpr expr []]
 
 expr2comp :: Expr -> Stream Value
 expr2comp xs = asum (map expr12comp xs)
@@ -79,16 +78,5 @@ expr12comp (StrExpr s) = pure $ S s
 expr12comp (NumExpr n) = pure $ N n
 expr12comp (ChrExpr c) = pure $ C c
 expr12comp (VarExpr i) = lookupVar i
-expr12comp (ObjExpr props expr) = pure $ O (fmap expr2comp props, expr2comp expr)
-
-expr12comp (EvlExpr objs) = do
-  val <- expr2comp objs
-  case val of
-    O (props, expr) -> local (\parentEnv -> parentEnv `Map.union` props) expr
-    x               -> fail ("Cannot evaluate a non-object: " ++ show x)
-    
-expr12comp (AppExpr ops args) = do
-  val <- expr2comp ops
-  case val of
-    O (props, expr) -> local (\parentEnv -> Map.insert "_" (expr2comp args) (parentEnv `Map.union` props)) expr
-    x               -> fail ("Cannot apply a non-object: " ++ show x)
+expr12comp (ObjExpr props expr) = object (fmap expr2comp props) (expr2comp expr)
+expr12comp (AppExpr ops args)   = apply (expr2comp ops) (expr2comp args)
