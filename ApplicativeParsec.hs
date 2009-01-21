@@ -1,5 +1,4 @@
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses #-}
-{-# OPTIONS -fglasgow-exts -XUndecidableInstances #-}  
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, UndecidableInstances #-}
 module ApplicativeParsec
     (
       module Control.Applicative
@@ -8,7 +7,6 @@ module ApplicativeParsec
     ) where
 
 import Control.Applicative
-import Control.Monad (MonadPlus(..), ap)
 -- Hide a few names that are provided by Applicative.
 import Text.Parsec hiding (many, optional, (<|>))
 import Control.Monad.Error

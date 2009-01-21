@@ -10,7 +10,11 @@ data Env = Env { getMap :: Map.Map String (Maybe Expr) } deriving (Eq, Show)
 
 instance Monoid Env where
   mempty = Env Map.empty
-  Env lMap `mappend` Env rMap = Env (Map.unionWith mappend lMap rMap)
+  Env lMap `mappend` Env rMap = Env (Map.unionWithKey oneJust lMap rMap) where
+    oneJust k Nothing Nothing = Nothing
+    oneJust k (Just x) Nothing = Just x
+    oneJust k Nothing (Just x) = Just x
+    oneJust k (Just _) (Just _) = error ("Dupicate declaration of " ++ k)
 
 type Expr = [Expr1]
 data Expr1 
