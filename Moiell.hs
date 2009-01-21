@@ -79,4 +79,4 @@ main2 = do
   print $ ast2Expr ast
   
 main3 = case (parseString "?y = ?x => ?z => 1,z,2,x,3; y(10)(20); 10 y 20") of
-  (Right ast) -> ({-expr2comp . -}ast2Expr) ast  
+  (Right ast) -> ({-expr2comp . -}ast2Expr) ast
