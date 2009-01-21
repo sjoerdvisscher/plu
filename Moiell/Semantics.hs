@@ -6,26 +6,27 @@ import Prelude hiding (foldr, mapM, sequence)
 import Data.Foldable
 import Data.Maybe
 import Data.Traversable
+import qualified Data.Map as Map
 import Control.Monad hiding (msum, mapM, sequence)
 import Control.Monad.Error hiding (msum, mapM, sequence)
-import Control.Monad.State hiding (msum, mapM, sequence)
 import Control.Monad.Reader hiding (msum, mapM, sequence)
 import Control.Applicative
 
-type TState = [Int]
-type TEnv = [(String, Int)]
-type TError = Int
+type TEnv = Map.Map String (Stream Value)
+type TError = String
 
-data Result a = Yield a (Stream a) StateRec | Done StateRec | Error TError StateRec deriving Show
-data StateRec = StateRec { state :: TState, env :: TEnv } deriving Show
+type Object = (TEnv, Stream Value)
+data Result a = Yield a (Stream a) StateRec | Done StateRec | Error TError StateRec
+data StateRec = StateRec { env :: TEnv }
 data Stream a = Str (StateRec -> Result a)
-data Value = N Double | S String deriving (Eq, Ord, Show)
+data Value = N Double | S String | C Char | O Object
 
 eval s (Str c)   = c s
 compAp f (Str c) = Str $ f . c
 
 instance Monad Stream where
   return x  = Str $ Yield x empty
+  fail s    = Str $ Error s
   c >>= f   = compAp helper c where
     helper (Yield x sx s) = eval s $ (f x) <|> (sx >>= f)
     helper (Done s)       = Done s
@@ -38,13 +39,12 @@ instance MonadPlus Stream where
     helper (Done s)       = eval s b 
     helper r              = r
   
-instance MonadState TState Stream where
-  get       = Str $ \s -> Yield (state s) empty s
-  put st    = Str $ \s -> Yield ()        empty s{ state = st }
-
 instance MonadReader TEnv Stream where
   ask       = Str $ \s -> Yield (env s) empty s
-  local f c = Str $ \s -> eval s{ env = f (env s) } c
+  local f c = Str $ \s -> restoreEnv s $ eval s{ env = f (env s) } c where
+    restoreEnv s (Yield x sa s1) = Yield x (compAp (restoreEnv s) sa) s1
+    restoreEnv s (Done s1)       = Done s1 { env = env s }
+    restoreEnv s (Error e s1)    = Error e s1 { env = env s }
 
 instance MonadError TError Stream where
   throwError errMsg = Str $ Error errMsg
@@ -68,17 +68,40 @@ instance Functor Result where
   fmap f (Done s)      = Done s
   fmap f (Error e s)   = Error e s
 
-startState = StateRec { state = [], env = [] }
+instance Show Value where
+  show (N n) = show n
+  show (S s) = s
+  show (C c) = [c]
+  show (O o) = "{Object}"
 
-runComp comp = showResult $ eval startState comp
-showResult result = case result of 
-  Yield x comp s  -> (show x) ++ "\n" ++ showResult (eval s comp)
-  Done s          -> ("Done.\n" ++ show s)
-  Error e s       -> ("Error: " ++ show e ++ "\n" ++ show s)
+addLocals localEnv = local (\parentEnv -> parentEnv `Map.union` localEnv)
+addLocal i s = addLocals (Map.singleton i s)
 
-instance Show a => Show (Stream a) where
-  show = runComp
+lookupVar i = do
+  env <- ask
+  case Map.lookup i env of
+    Just x -> x
+    Nothing -> fail ("Undeclared variable: " ++ i)
 
+apply ops args = do
+  val <- ops
+  case val of
+    O (props, expr) -> addLocals props $ addLocal "_" args expr
+    x               -> fail ("Cannot apply a non-object: " ++ show x)
+
+object props val = pure $ O (props, val)
+
+globalEnv = Map.fromList [
+    ("Each", object Map.empty eachS)
+  ]
+
+eachS = do
+  val <- lookupVar "_"
+  case val of
+    O (props, expr) -> object Map.empty (pure $ N 30) --addLocals props $ addLocal "_" (pure a) expr)
+    x               -> fail ("Cannot apply a non-object: " ++ show x)
+
+{-
 eachS = fmap return
     
 splitS :: Stream a -> Stream (Stream a, Stream a)
@@ -96,12 +119,6 @@ oneS str = do (x, xs) <- splitS str; x
 notS str = ifS str empty (return ())
 andS aStr bStr = ifS aStr bStr empty
 orS aStr bStr = ifS aStr aStr bStr
-
-n = pure . N
-s = pure . S
-
-toStream :: [Double] -> Stream Value
-toStream as = asum (map n as)
 
 toDouble vStr = do
   v <- vStr
@@ -131,14 +148,15 @@ filterN2 f aStr bStr = do
 liftN2 f aStr bStr = do
   a <- toDouble aStr
   b <- toDouble bStr
-  n $ f a b
+  pure . N $ f a b
 
 liftS2 f aStr bStr = do
   a <- toString aStr
   b <- toString bStr
-  s $ f a b
+  pure . S $ f a b
   
 (*+*)  = liftN2 (+)
 (*-*)  = liftN2 (-)
 (***)  = liftN2 (*)
 (*++*)  = liftS2 (++)
+-}
