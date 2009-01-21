@@ -8,8 +8,10 @@ import Moiell.Expr
 
 import Control.Applicative
 import Data.Foldable
+import qualified Data.Map as Map
 import Control.Monad hiding (msum, mapM, sequence)
 
+{-
 qsortS xs = do
   (x, xs) <- splitS xs
   ifS x (qsortS (xs *<=* x) <|> x <|> qsortS (xs *>* x)) empty
@@ -45,17 +47,37 @@ pairwiseAdd xs ys = do
 
 fib = n 1 <|> n 1 <|> (fib `pairwiseAdd` (tailS fib))
 
+n = pure . N
+s = pure . S
+
+toStream :: [Double] -> Stream Value
+toStream as = asum (map n as)
+-}
+
+startState = StateRec { env = globalEnv }
+
+runComp comp = showResult $ eval startState comp
+showResult result = case result of 
+  Yield x comp s  -> (show x) ++ "\n" ++ showResult (eval s comp)
+  Done s          -> ("Done.\n")
+  Error e s       -> ("Error: " ++ show e)
+
+instance Show a => Show (Stream a) where
+  show = runComp
+
+{-
 main1 = asum [
     s "Quicksort:"
   , showStreamS (n 5) (qsortS (toStream [5,2,6,8,3]))
   , s "Fibonacci:"
   , showStreamS (n 10) fib
   ]
+-}
   
 main2 = do
   (Right ast) <- parseFile "test.moi"
   print $ ast2Expr ast
   
-main3 = case (parseString "(?x, ?xs = 3, 4; xs + x)") of
-  (Right ast) -> ast2Expr ast
+main3 = case (parseString "?y = 3,(?x => x); y(3); x") of
+  (Right ast) -> (expr2comp . ast2Expr) ast
   

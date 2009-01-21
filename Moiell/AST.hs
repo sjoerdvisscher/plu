@@ -24,7 +24,7 @@ mkPrefixApp op           arg                          = mkApp op arg
 
 mkInfixApp :: AST -> AST -> AST -> AST
 mkInfixApp [Ident ","]  l       r = l ++ r
-mkInfixApp [Ident "=>"] l       r = mkApp [Brackets '(' ')' False] (mkInfixApp [Ident "="] l [Ident "_"] ++ r)
+mkInfixApp [Ident "=>"] l       r = mkApp [Brackets '{' '}' False] (mkInfixApp [Ident "="] l [Ident "_"] ++ r)
 mkInfixApp [Ident "->"] l       r = mkApp [Ident "Each"          ] (mkInfixApp [Ident "="] l [Ident "_"] ++ r)
 mkInfixApp op           l       r = mkApp (mkApp op l) r
 
