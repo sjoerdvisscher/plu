@@ -58,7 +58,7 @@ ast12EnvExpr (App [App [Ident "="] l] r) = EnvExpr (Env env) []
     Env map = lEnv `mappend` rEnv
     env = assign lExprs rExprs map
     assign [IdtExpr i]      r env = Map.insert i (Just r) env
-    assign ((IdtExpr i):xs) r env = assign xs [AppExpr [IdtExpr "Tail"] r] (Map.insert i (Just [AppExpr [IdtExpr "Head"] r]) env)
+    assign ((IdtExpr i):xs) r env = assign xs [AppExpr [VarExpr "Tail"] r] (Map.insert i (Just [AppExpr [VarExpr "Head"] r]) env)
 
 ast12EnvExpr (App ops args) = EnvExpr env [AppExpr opExprs argExprs]
   where
