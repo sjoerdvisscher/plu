@@ -1,4 +1,15 @@
-module Moiell.Expr (Expr, Expr1(..), ast2Expr, expr2comp) where
+module Moiell.Expr (
+  ast2Comp, 
+  run, 
+  
+  Comp(..), 
+  Value(..), 
+  Object(..),
+  
+  TException,
+  TWriter,
+  TReader
+  ) where
 
 import Moiell.AST
 import Moiell.Semantics
@@ -8,79 +19,87 @@ import Data.Foldable
 import Data.Monoid
 import Control.Monad.Reader hiding (msum, mapM, sequence)
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
-data Env = Env { getMap :: Map.Map String (Maybe Expr) } deriving (Eq, Show)
+type Scope = Map.Map String Expr
+data Env = Env { getExpr :: Expr, getBound :: Scope, getFree :: Set.Set String } deriving (Show)
 
 instance Monoid Env where
-  mempty = Env Map.empty
-  Env lMap `mappend` Env rMap = Env (Map.unionWithKey oneJust lMap rMap) where
-    oneJust k Nothing Nothing = Nothing
-    oneJust k (Just x) Nothing = Just x
-    oneJust k Nothing (Just x) = Just x
-    oneJust k (Just _) (Just _) = error ("Dupicate declaration of " ++ k)
+  mempty = Env [] Map.empty Set.empty
+  Env lExpr lBound lFree `mappend` Env rExpr rBound rFree = 
+    Env (lExpr ++ rExpr) (Map.unionWithKey noDupes lBound rBound) (Set.union lFree rFree) where
+      noDupes k _ _ = fail ("Duplicate variable definition:" ++ k)
 
 type Expr = [Expr1]
 data Expr1 
-  = ObjExpr (Map.Map String Expr) Expr 
+  = ObjExpr Scope Expr 
   | AppExpr Expr Expr
   | VarExpr String
   | IdtExpr String
-  | StrExpr String
-  | ChrExpr Char
-  | NumExpr Double
-  deriving (Eq, Show)
+  | ValExpr Value
+  | ThisExpr
+  deriving (Show)
 
-data EnvExpr = EnvExpr { env :: Env, expr :: Expr } deriving (Eq, Show)
+ast2Comp :: CompMap -> AST -> Comp Value
+ast2Comp global ast = if not(Set.null(undecls)) 
+  then fail ("Undeclared variables: " ++ show env) 
+  else expr2comp [global] expr 
+    where
+      env = mkScope $ ast2Env ast
+      Env expr _ frees = env
+      undecls = Set.filter (flip Map.notMember global) frees
 
-instance Monoid EnvExpr where
-  mempty = EnvExpr mempty mempty
-  EnvExpr lEnv lExpr `mappend` EnvExpr rEnv rExpr =
-    EnvExpr (lEnv `mappend` rEnv) (lExpr `mappend` rExpr)
+ast2Env :: AST -> Env
+ast2Env xs = mconcat (map ast12Env xs)
 
-ast2Expr :: AST -> Expr
-ast2Expr = expr . mkScope . ast2EnvExpr
+ast12Env :: AST1 -> Env
+ast12Env (StringLit s) = Env [ValExpr $ S s] Map.empty Set.empty
+ast12Env (CharLit c)   = Env [ValExpr $ C c] Map.empty Set.empty
+ast12Env (NumberLit n) = Env [ValExpr $ N n] Map.empty Set.empty
 
-ast2EnvExpr :: AST -> EnvExpr
-ast2EnvExpr xs = mconcat (map ast12EnvExpr xs)
+ast12Env (                 Ident "$") = Env [ThisExpr ] Map.empty Set.empty
+ast12Env (                 Ident  i ) = Env [VarExpr i] Map.empty (Set.singleton i)
+ast12Env (App [Ident "?"] [Ident  i]) = Env [IdtExpr i] Map.empty (Set.singleton i)
 
-ast12EnvExpr (StringLit s) = EnvExpr mempty [StrExpr s]
-ast12EnvExpr (CharLit c)   = EnvExpr mempty [ChrExpr c]
-ast12EnvExpr (NumberLit x) = EnvExpr mempty [NumExpr x]
-ast12EnvExpr (                 Ident i ) = EnvExpr (Env (Map.singleton i Nothing)) [VarExpr i]
-ast12EnvExpr (App [Ident "?"] [Ident i]) = EnvExpr (Env (Map.singleton i Nothing)) [IdtExpr i]
-ast12EnvExpr (App [Brackets '(' ')' _] arg) = mkScope $ ast2EnvExpr arg
-ast12EnvExpr (App [Brackets '{' '}' _] arg) = mkObject $ ast2EnvExpr arg
+ast12Env (App [Brackets '(' ')' _] arg) = mkScope  $ ast2Env arg
+ast12Env (App [Brackets '{' '}' _] arg) = mkObject $ ast2Env arg
 
-ast12EnvExpr (App [App [Ident "="] l] r) = EnvExpr (Env env) []
+ast12Env (App [App [Ident "="] l] r) = assign lExpr rExpr (Env [] lBound lFree `mappend` Env [] rBound rFree)
   where
-    EnvExpr lEnv lExprs = ast2EnvExpr l
-    EnvExpr rEnv rExprs = ast2EnvExpr r
-    Env map = lEnv `mappend` rEnv
-    env = assign lExprs rExprs map
-    assign [IdtExpr i]      r env = Map.insert i (Just r) env
-    assign ((IdtExpr i):xs) r env = assign xs [AppExpr [VarExpr "Tail"] r] (Map.insert i (Just [AppExpr [VarExpr "Head"] r]) env)
+    Env lExpr lBound lFree = ast2Env l
+    Env rExpr rBound rFree = ast2Env r
+    assign [IdtExpr i]      r env = assign1 i r env
+    assign ((IdtExpr i):xs) r env = assign xs [AppExpr [VarExpr "Tail"] r] (assign1 i [AppExpr [VarExpr "Head"] r] env)
+    assign1 i r (Env expr bound free) = Env expr (Map.insert i r bound) free
 
-ast12EnvExpr (App ops args) = EnvExpr env [AppExpr opExprs argExprs]
+ast12Env (App ops args) = Env [AppExpr opExprs argExprs] bounds frees
   where
-    EnvExpr opEnv opExprs = ast2EnvExpr ops
-    EnvExpr argEnv argExprs = ast2EnvExpr args
-    env = opEnv `mappend` argEnv
+    Env opExprs opB opF = ast2Env ops
+    Env argExprs argB argF = ast2Env args
+    bounds = opB `mappend` argB
+    frees  = opF `mappend` argF
 
+mkScope :: Env -> Env
 mkScope arg = lower $ mkObject arg
-mkObject arg = EnvExpr (Env frees) [ObjExpr bounds argExprs] where
-  EnvExpr (Env argEnv) argExprs = arg
-  (frees, bounds') = Map.partition (== Nothing) argEnv
-  bounds = Map.mapMaybe id bounds'
+mkObject :: Env -> Env
+mkObject (Env argExprs bounds frees) = Env [ObjExpr bounds argExprs] Map.empty (Set.difference frees $ Map.keysSet bounds)
 
-lower (EnvExpr env expr) = EnvExpr env [AppExpr expr []]
+lower :: Env -> Env
+lower (Env expr b f) = Env [AppExpr expr []] b f
 
-expr2comp :: Expr -> Stream Value
-expr2comp xs = asum (map expr12comp xs)
+expr2comp :: [CompMap] -> Expr -> Comp Value
+expr2comp env xs = asum (map (expr12comp env) xs)
 
-expr12comp :: Expr1 -> Stream Value
-expr12comp (StrExpr s) = pure $ S s
-expr12comp (NumExpr n) = pure $ N n
-expr12comp (ChrExpr c) = pure $ C c
-expr12comp (VarExpr i) = lookupVar i
-expr12comp (ObjExpr props expr) = object (fmap expr2comp props) (expr2comp expr)
-expr12comp (AppExpr ops args)   = apply (expr2comp ops) (expr2comp args)
+expr12comp :: [CompMap] -> Expr1 -> Comp Value
+expr12comp _ (ThisExpr ) = this
+expr12comp _ (ValExpr x) = pure x
+expr12comp e (VarExpr i) = lookupVar i e
+expr12comp e (ObjExpr props expr) = object compProps (expr2comp env1 expr)
+  where 
+    compProps = fmap (expr2comp env1) props
+    env1 = compProps : e
+expr12comp e (AppExpr ops args)   = apply (expr2comp e ops) (expr2comp e args)
+
+lookupVar :: String -> [CompMap] -> Comp Value
+lookupVar i [] = error ("Variable not found:" ++ i)
+lookupVar i (e:p) = maybe (runInParent $ lookupVar i p) id $ Map.lookup i e

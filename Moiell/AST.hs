@@ -14,7 +14,7 @@ data AST1
 
 bracketPostfix :: AST -> AST -> AST
 bracketPostfix a [App [Brackets '(' ')' _] arg] = mkApp a arg
-bracketPostfix a [App [Brackets '[' ']' _] arg] = mkInfixApp [Ident "Filter"] a arg
+bracketPostfix a [App [Brackets '[' ']' _] arg] = mkInfixApp [Ident "Filter"] a $ mkApp [Brackets '{' '}' False] arg
 bracketPostfix a [App [Brackets l r _] arg] = mkInfixApp [Brackets l r True] a arg
 
 -- Resolve ident(...), ident[...] and ident{...} parsing ambiguity
@@ -24,7 +24,7 @@ mkPrefixApp op           arg                          = mkApp op arg
 
 mkInfixApp :: AST -> AST -> AST -> AST
 mkInfixApp [Ident ","]  l       r = l ++ r
-mkInfixApp [Ident "=>"] l       r = mkApp [Brackets '{' '}' False] (mkInfixApp [Ident "="] l [Ident "_"] ++ r)
+mkInfixApp [Ident "=>"] l       r = mkApp [Brackets '{' '}' False] (mkInfixApp [Ident "="] l [App [Ident "_"] [Ident "$"]] ++ r)
 mkInfixApp [Ident "->"] l       r = mkApp [Ident "Each"          ] (mkInfixApp [Ident "=>"] l r)
 mkInfixApp op           l       r = mkApp (mkApp op l) r
 
