@@ -2,10 +2,15 @@
   (
     "Quicksort:"
 
+    # QSort sorts a sequence
     ?QSort = ?x,?xs =>
       xs And (QSort(xs < x); x; QSort(xs >= x)) Or x
 
     QSort(5,2,3,6,4) Show 5
+    
+    # qSort sorts lists
+    ?qSort = ?l -> { l().QSort }
+    qSort({2,3}; {3,2}) show 5
   )
 
   (
@@ -18,7 +23,7 @@
 
     ?fib = 1, 1, fib zipWith(+) fib.Tail
 
-    fib Show 5
+    fib Show 10
   )
   
   (
@@ -27,7 +32,19 @@
     ?primeFilter = ?p,?ns => p, primeFilter(ns[$._ mod p != 0])
     ?primeInput = 2, primeInput + 1
 
-    primeFilter(primeInput) Show 5
+    primeFilter(primeInput) Show 10
+  )
+  
+  (
+    "Interleave:"
+    
+    ?Interleave = ?x,?xs => ?ys =>
+      x And (x; ys Interleave xs) Or ys
+    
+    ?evens = 0, 2 + evens
+    ?odds = 1, 2 + odds
+    
+    (evens Interleave odds) Show 10
   )
 
   # Helper functions.
@@ -39,4 +56,5 @@
     xs And (x + sep + (xs Join sep)) Or x
 
   ?Show = ?xs => ?max -> xs Take max Join ", "
+  ?show = ?xs -> ?max -> xs() Show max
 )

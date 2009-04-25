@@ -78,15 +78,15 @@ eachS :: Comp Value
 eachS = mkFun2 pure pure (\body arg -> apply (pure body) (pure arg))
 
 filterS :: Comp Value
-filterS = mkFun2 pure pure (\arg test -> ifS (apply (pure test) (pure arg)) (pure arg) empty)
+filterS = mkFun2 pure pure (\arg test -> ifS (apply (pure test) (pure arg)) (const $ pure arg) empty)
 
-ifS :: Comp Value -> Comp Value -> Comp Value -> Comp Value
-ifS testComp trueComp falseComp = msplit testComp >>= maybe falseComp (const trueComp)
+ifS :: Comp Value -> ((Value, Comp Value) -> Comp Value) -> Comp Value -> Comp Value
+ifS testComp th falseComp = msplit testComp >>= maybe falseComp th
   
 notS, andS, orS :: Comp Value
-notS = liftC $ ifS getArg empty unit
-andS = liftC $ liftC $ ifS (runInParent getArg) getArg empty
-orS  = liftC $ liftC $ msplit (runInParent getArg) >>= maybe getArg (\(h, t) -> pure h <|> t)
+notS = liftC $ ifS getArg (const empty) unit
+andS = liftC $ liftC $ ifS (runInParent getArg) (const getArg) empty
+orS  = liftC $ liftC $ ifS (runInParent getArg) (\(h, t) -> pure h <|> t) getArg 
 
 filterN2 :: (Double -> Double -> Bool) -> Comp Value
 filterN2 op = mkFun2 toDouble toDouble (\a b -> if (op a b) then (pure $ N a) else empty)
