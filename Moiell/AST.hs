@@ -15,7 +15,8 @@ data AST1
 bracketPostfix :: AST -> AST -> AST
 bracketPostfix a [App [Brackets '(' ')' _] arg] = mkApp a arg
 bracketPostfix a [App [Brackets '[' ']' _] arg] = mkInfixApp [Ident "Filter"] a $ mkApp [Brackets '{' '}' False] arg
-bracketPostfix a [App [Brackets l r _] arg] = mkInfixApp [Brackets l r True] a arg
+bracketPostfix a [App [Brackets  l   r  _] arg] = mkApp (mkApp [Brackets l r True] arg) a
+bracketPostfix a b = error ("Unexpected postfix expression: " ++ show a ++ show b)
 
 -- Resolve ident(...), ident[...] and ident{...} parsing ambiguity
 mkPrefixApp :: AST -> AST -> AST

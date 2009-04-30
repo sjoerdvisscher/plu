@@ -1,4 +1,4 @@
-module Moiell.Parser (parser, parseFile, parseString) where
+module Moiell.Parser (parseFile, parseString, AST, AST1(..), getAST) where
 
 import Moiell.AST
 import Moiell.Tokenizer
@@ -8,6 +8,9 @@ import qualified Data.String.UTF8 as U
 
 type TokenParser a = Parsec [(SourcePos, Token)] String a
 type ParserForAST = TokenParser AST
+
+getAST              :: Either ParseError AST -> AST
+getAST              = either (error . show) id 
 
 parseFile           :: SourceName -> IO (Either ParseError AST)
 parseFile fileName  = do

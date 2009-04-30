@@ -4,14 +4,14 @@ where
 import Moiell.Semantics
 
 import MonadLibSplit
-import Control.Applicative
+import Control.Monad
 import Data.Maybe
 import Data.Fixed (divMod')
 import qualified Data.Map as Map
 
 globalScope :: CompMap
 globalScope = Map.fromList 
-  [ ("_", pure $ A "_")
+  [ ("_", return $ A "_")
   , ("unit", unit)
   , ("Each", eachS)
   , ("And", andS)
@@ -20,7 +20,7 @@ globalScope = Map.fromList
   , ("Head", headS)
   , ("Tail", tailS)
   , ("Filter", filterS)
-  , ("+", mkFun2 pure pure plus)
+  , ("+", mkFun2 return return plus)
   , ("-", mkBinOp (-))
   , ("*", mkBinOp (*))
   , ("/", mkBinOp (/))
@@ -31,23 +31,25 @@ globalScope = Map.fromList
   , (">=", filterN2 (>=))
   , ("==", filterN2 (==))
   , ("!=", filterN2 (/=))
+  , ("throw", mkFun return throwS)
+  , ("catch", catchS)
   ]
 
 globalObject :: Object
 globalObject = Ur
 
 liftC :: Comp Value -> Comp Value
-liftC = object Map.empty
+liftC = object (return.O $ Ur) Map.empty
 
 unit :: Comp Value
 unit = liftC unit
 
 getArg :: Comp Value
-getArg = apply (pure $ A "_") this
+getArg = apply (return $ A "_") this
 
-mkFun :: (Comp Value -> Comp a) -> (a -> Comp Value) -> Comp Value
+mkFun :: (Value -> Comp a) -> (a -> Comp Value) -> Comp Value
 mkFun fx f = liftC $ do
-  x <- fx getArg
+  x <- fx =<< getArg
   f x
 
 mkFun2 :: (Value -> Comp a) -> (Value -> Comp b) -> (a -> b -> Comp Value) -> Comp Value
@@ -58,45 +60,56 @@ mkFun2 fx fy f = liftC $ do
     f x y
 
 mkBinOp :: (Double -> Double -> Double) -> Comp Value
-mkBinOp op = mkFun2 toDouble toDouble (\l r -> pure . N $ op l r)
+mkBinOp op = mkFun2 toDouble toDouble (\l r -> return . N $ op l r)
 
 toDouble :: Value -> Comp Double
-toDouble (N n) = pure n
-toDouble (S s) = maybe empty (pure . fst) (listToMaybe (reads s))
+toDouble (N n) = return n
+toDouble (S s) = maybe mzero (return . fst) (listToMaybe (reads s))
 toDouble (C c) = toDouble $ S [c]
-toDouble _    = empty
+toDouble _     = mzero
 
 plus :: Value -> Value -> Comp Value
-plus (S s) y = pure.S $ s ++ show y
-plus (C c) y = pure.S $ c : show y
-plus y (S s) = pure.S $ show y ++ s
-plus y (C c) = pure.S $ show y ++ [c]
-plus (N n1) (N n2) = pure.N $ n1 + n2
-plus _ _ = empty
+plus (S s) y = return.S $ s ++ show y
+plus (C c) y = return.S $ c : show y
+plus y (S s) = return.S $ show y ++ s
+plus y (C c) = return.S $ show y ++ [c]
+plus (N n1) (N n2) = return.N $ n1 + n2
+plus _ _ = mzero
   
 eachS :: Comp Value
-eachS = mkFun2 pure pure (\body arg -> apply (pure body) (pure arg))
+eachS = mkFun2 return return (\body arg -> apply (return body) (return arg))
 
 filterS :: Comp Value
-filterS = mkFun2 pure pure (\arg test -> ifS (apply (pure test) (pure arg)) (const $ pure arg) empty)
+filterS = mkFun2 return return (\arg test -> ifS (apply (return test) (return arg)) (const $ return arg) mzero)
 
 ifS :: Comp Value -> ((Value, Comp Value) -> Comp Value) -> Comp Value -> Comp Value
 ifS testComp th falseComp = msplit testComp >>= maybe falseComp th
   
 notS, andS, orS :: Comp Value
-notS = liftC $ ifS getArg (const empty) unit
-andS = liftC $ liftC $ ifS (runInParent getArg) (const getArg) empty
-orS  = liftC $ liftC $ ifS (runInParent getArg) (\(h, t) -> pure h <|> t) getArg 
+notS = liftC $ ifS getArg (const mzero) unit
+andS = liftC $ do x <- msplit getArg; liftC $ maybe mzero (const getArg) x
+orS  = liftC $ do x <- msplit getArg; liftC $ maybe getArg (\(h, t) -> return h `mplus` t) x
 
 filterN2 :: (Double -> Double -> Bool) -> Comp Value
-filterN2 op = mkFun2 toDouble toDouble (\a b -> if (op a b) then (pure $ N a) else empty)
+filterN2 op = mkFun2 toDouble toDouble (\a b -> if (op a b) then (return $ N a) else mzero)
 
 headS :: Comp Value
 headS = liftC $ do
   s <- msplit getArg
-  maybe empty (pure . fst) s
+  maybe mzero (return . fst) s
 
 tailS :: Comp Value
 tailS = liftC $ do
   s <- msplit getArg
-  maybe empty snd s
+  maybe mzero snd s
+  
+throwS :: Value -> Comp Value
+throwS a = do
+  raise (show a)
+  mzero
+  
+catchS :: Comp Value
+catchS = liftC $ liftC $ (try c >>= either (apply hnd . return . S) return)
+  where
+    c = runInParent getArg
+    hnd = getArg
