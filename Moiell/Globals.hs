@@ -6,7 +6,6 @@ import Moiell.Semantics
 import MonadLibSplit
 import Control.Monad
 import Data.Maybe
-import Data.Fixed (divMod')
 import qualified Data.Map as Map
 
 globalScope :: CompMap
@@ -20,11 +19,13 @@ globalScope = Map.fromList
   , ("Head", headS)
   , ("Tail", tailS)
   , ("Filter", filterS)
-  , ("+", mkFun2 return return plus)
+  , ("+", mkBinOp (+))
   , ("-", mkBinOp (-))
   , ("*", mkBinOp (*))
   , ("/", mkBinOp (/))
+  , ("div", mkBinOp (\l r -> fst (l `divMod'` r)))
   , ("mod", mkBinOp (\l r -> snd (l `divMod'` r)))
+  , ("++", mkFun2 toString toString (\l r -> return . S $ l ++ r))
   , ("<", filterN2 (<))
   , ("<=", filterN2 (<=))
   , (">", filterN2 (>))
@@ -68,13 +69,8 @@ toDouble (S s) = maybe mzero (return . fst) (listToMaybe (reads s))
 toDouble (C c) = toDouble $ S [c]
 toDouble _     = mzero
 
-plus :: Value -> Value -> Comp Value
-plus (S s) y = return.S $ s ++ show y
-plus (C c) y = return.S $ c : show y
-plus y (S s) = return.S $ show y ++ s
-plus y (C c) = return.S $ show y ++ [c]
-plus (N n1) (N n2) = return.N $ n1 + n2
-plus _ _ = mzero
+toString :: Value -> Comp String
+toString = return . show
   
 eachS :: Comp Value
 eachS = mkFun2 return return (\body arg -> apply (return body) (return arg))
@@ -113,3 +109,6 @@ catchS = liftC $ liftC $ (try c >>= either (apply hnd . return . S) return)
   where
     c = runInParent getArg
     hnd = getArg
+
+divMod' :: Double -> Double -> (Double, Double)
+divMod' n d = (f, n - f * d) where f = fromIntegral $ floor $ n / d

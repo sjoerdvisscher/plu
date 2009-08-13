@@ -52,7 +52,7 @@
   (n != 0) And (x; xs Take n - 1)
 
 ?Join = ?x,?xs => ?sep ->
-  xs And (x + sep + (xs Join sep)) Or x
+  xs And (x ++ sep ++ (xs Join sep)) Or x
 
 ?Show = ?xs => ?max -> xs Take max Join ", "
 ?show = ?xs -> ?max -> xs() Show max
