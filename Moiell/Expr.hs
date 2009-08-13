@@ -13,6 +13,7 @@ data Expr1
   | AppExpr Expr Expr
   | VarExpr String
   | IdtExpr String
+  | AttExpr String
   | StrExpr String
   | ChrExpr Char
   | NumExpr Double
@@ -45,6 +46,7 @@ ast2Env :: AST -> Env
 ast2Env xs = mconcat (map ast12Env xs)
 
 ast12Env :: AST1 -> Env
+ast12Env (Attr a)      = Env [AttExpr a] Map.empty Set.empty
 ast12Env (StringLit s) = Env [StrExpr s] Map.empty Set.empty
 ast12Env (CharLit c)   = Env [ChrExpr c] Map.empty Set.empty
 ast12Env (NumberLit n) = Env [NumExpr n] Map.empty Set.empty
@@ -52,6 +54,7 @@ ast12Env (NumberLit n) = Env [NumExpr n] Map.empty Set.empty
 ast12Env (                 Ident "$") = Env [ThisExpr ] Map.empty Set.empty
 ast12Env (                 Ident  i ) = Env [VarExpr i] Map.empty (Set.singleton i)
 ast12Env (App [Ident "?"] [Ident  i]) = Env [IdtExpr i] Map.empty (Set.singleton i)
+ast12Env (App [Ident "@"] [Ident  i]) = Env [IdtExpr i] Map.empty (Set.singleton i)
 
 ast12Env (App [Brackets '(' ')' _] arg) = mkScope  $ ast2Env arg
 ast12Env (App [Brackets '{' '}' _] arg) = mkObject [UrExpr] $ ast2Env arg
@@ -83,6 +86,7 @@ lower (Env expr b f) = Env [AppExpr expr []] b f
 
 instance Show Expr1 where
   show (IdtExpr i) = "?" ++ i
+  show (AttExpr i) = "@" ++ i
   show (VarExpr i) = i
   show (NumExpr i) = show i
   show (ChrExpr c) = show c

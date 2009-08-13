@@ -6,6 +6,7 @@ type AST = [AST1]
 data AST1
   = App AST AST
   | Ident String
+  | Attr String
   | Brackets Char Char Bool
   | NumberLit Double
   | CharLit Char
@@ -20,6 +21,7 @@ bracketPostfix a b = error ("Unexpected postfix expression: " ++ show a ++ show 
 
 -- Resolve ident(...), ident[...] and ident{...} parsing ambiguity
 mkPrefixApp :: AST -> AST -> AST
+mkPrefixApp [Ident "@"] i@[Ident x] = mkInfixApp [Ident "="] (mkApp [Ident "?"] i) [Attr x]
 mkPrefixApp op@[Ident _] arg@[App [Brackets _ _ _] _] = bracketPostfix op arg
 mkPrefixApp op           arg                          = mkApp op arg
 

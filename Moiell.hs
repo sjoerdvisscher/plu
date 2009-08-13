@@ -53,6 +53,7 @@ expr12comp _ (UrExpr   ) = urObject
 expr12comp _ (StrExpr x) = return.S $ x
 expr12comp _ (ChrExpr x) = return.C $ x
 expr12comp _ (NumExpr x) = return.N $ x
+expr12comp _ (AttExpr i) = return.A $ i
 expr12comp e (VarExpr i) = lookupVar i e
 expr12comp _ (IdtExpr i) = fail $ "Name expressions only allowed in left-hand side of assignments:" ++ i
 expr12comp e (ObjExpr parExpr exprProps expr) = object (expr2comp e parExpr) Map.empty (expr2comp env1 expr)
