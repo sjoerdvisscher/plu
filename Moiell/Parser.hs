@@ -16,10 +16,10 @@ getAST              = either (error . show) id
 parseFile           :: SourceName -> IO (Either ParseError AST)
 parseFile fileName  = do
   bs <- B.readFile fileName
-  return $ parser fileName (decodeUtf8 $ B.snoc bs 10)
+  return $ parser fileName $ decodeUtf8 $ bs
 
 parseString         :: String -> Either ParseError AST
-parseString s       = parser "(unknown)" (pack (s ++ "\n"))
+parseString         = parser "(unknown)" . pack
 
 parser              :: SourceName -> Text -> Either ParseError AST
 parser fileName     = tokenizer fileName >=> runParser moiellProgram "" ""

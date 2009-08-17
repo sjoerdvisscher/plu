@@ -2,7 +2,7 @@ module Moiell.Tokenizer (tokenizer, Token(..)) where
 
 import ApplicativeParsec
 import Numeric
-import Data.Text (Text)
+import Data.Text (Text, snoc)
 
 data Token
   = CharTok Char
@@ -21,7 +21,7 @@ type IndentParser = Parsec Text String
 -- Begin with no indentation as parser state
 -- Add a new line to the input so every line ends with a new line.
 --tokenizer :: SourceName -> String -> Either ParseError [(SourcePos, Token)]
-tokenizer fileName input = runParser tokenize "" fileName input
+tokenizer fileName input = runParser tokenize "" fileName (input `snoc` '\n')
 
 tokenize          :: IndentParser [(SourcePos, Token)]
 tokenize          = indentedLines <* eof
