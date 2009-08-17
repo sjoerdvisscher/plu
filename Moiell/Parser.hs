@@ -4,7 +4,8 @@ import Moiell.AST
 import Moiell.Tokenizer
 import ApplicativeParsec
 import qualified Data.ByteString as B
-import qualified Data.String.UTF8 as U
+import Data.Text (Text, pack)
+import Data.Text.Encoding (decodeUtf8)
 
 type TokenParser a = Parsec [(SourcePos, Token)] String a
 type ParserForAST = TokenParser AST
@@ -15,12 +16,12 @@ getAST              = either (error . show) id
 parseFile           :: SourceName -> IO (Either ParseError AST)
 parseFile fileName  = do
   bs <- B.readFile fileName
-  return $ parser fileName (U.fromRep $ B.snoc bs 10)
+  return $ parser fileName (decodeUtf8 $ B.snoc bs 10)
 
 parseString         :: String -> Either ParseError AST
-parseString s       = parser "(unknown)" (U.fromString (s ++ "\n"))
+parseString s       = parser "(unknown)" (pack (s ++ "\n"))
 
-parser              :: SourceName -> (U.UTF8 B.ByteString) -> Either ParseError AST
+parser              :: SourceName -> Text -> Either ParseError AST
 parser fileName     = tokenizer fileName >=> runParser moiellProgram "" ""
 
 moiellProgram       :: ParserForAST
