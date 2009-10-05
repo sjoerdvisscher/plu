@@ -8,7 +8,7 @@
   QSort(5,2,3,6,4) Show 5
   
   # qSort sorts lists
-  ?qSort = ?l -> { l().QSort }
+  ?qSort = QSort.lift
   qSort({2,3}; {3,2}) show 5
 )
 
@@ -22,7 +22,7 @@
 
   ?fib = 1, 1, fib zipWith(+) fib.Tail
 
-  fib Show 10
+  fib Show 13
 )
 
 (
@@ -31,7 +31,7 @@
   ?primeFilter = ?p,?ns => p, primeFilter(ns[$._ mod p != 0])
   ?primeInput = 2, primeInput + 1
 
-  primeFilter(primeInput) Show 10
+  primeFilter(primeInput) Show 20
 )
 
 (
@@ -56,3 +56,6 @@
 
 ?Show = ?xs => ?max -> xs Take max Join ", "
 ?show = ?xs -> ?max -> xs() Show max
+
+?lift = ?f ->
+  ?l -> { f(l()) }

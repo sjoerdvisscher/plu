@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -fglasgow-exts -fallow-undecidable-instances #-}
+{-# LANGUAGE UndecidableInstances, MultiParamTypeClasses, FlexibleInstances, FunctionalDependencies #-}
 {-| This library provides a collection of monad transformers that
     can be combined to produce various monads.
 -}

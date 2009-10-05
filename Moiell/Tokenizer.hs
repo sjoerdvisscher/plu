@@ -35,8 +35,8 @@ withPos p         = (,) <$> getPosition <*> p
 
 indentedLines     = concat <$> many (emptyLine <|> indentedLine) <?> "lines"
 indentedLine      = try (indentation *> (indentedBlock <|> afterIndentation)) <?> "line"
-emptyLine         = try (([] <$ many (oneOf " \t")) <<:> newLine) <?> "empty line"
-newLine           = withPos (NL <$ char '\n') <?> "new-line"
+emptyLine         = newLine <?> "empty line"
+newLine           = try (([] <$ many (oneOf " \t")) <<:> withPos (NL <$ char '\n')) <?> "new-line"
 
 indentedBlock     = preserveState (
                       moreIndentation <:>> 
@@ -51,9 +51,9 @@ moreIndentation   = withPos (
                       Indent <$ (updateState . (flip (++)) =<< many1 (oneOf " \t"))
                     ) <?> "indent"
 
-afterIndentation  = (actualTokens <* optional lineComment) <<:> newLine
+afterIndentation  = (actualTokens <* optional lineComment) <++> newLine
 actualTokens      = option [] (
-                      nonIndentToken <:>> many (nonIndentToken <|> wsToken)
+                      nonIndentToken <:>> (concat <$> (many . try) ((++) <$> many wsToken <*> many1 nonIndentToken))
                     ) <?> "tokens"
 wsToken           = withPos (
                       WS <$ many1 (oneOf " \t")

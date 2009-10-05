@@ -6,7 +6,6 @@ type AST = [AST1]
 data AST1
   = App AST AST
   | Ident String
-  | Attr String
   | Brackets Char Char Bool
   | NumberLit Double
   | CharLit Char
@@ -21,15 +20,15 @@ bracketPostfix a b = error ("Unexpected postfix expression: " ++ show a ++ show 
 
 -- Resolve ident(...), ident[...] and ident{...} parsing ambiguity
 mkPrefixApp :: AST -> AST -> AST
-mkPrefixApp [Ident "@"] i@[Ident x] = mkInfixApp [Ident "="] (mkApp [Ident "?"] i) [Attr x]
+mkPrefixApp [Ident "@"] i@[Ident x] = mkInfixApp [Ident "="] (mkApp [Ident "?"] i) (mkApp [Ident "Attr"] [StringLit x])
 mkPrefixApp op@[Ident _] arg@[App [Brackets _ _ _] _] = bracketPostfix op arg
 mkPrefixApp op           arg                          = mkApp op arg
 
 mkInfixApp :: AST -> AST -> AST -> AST
-mkInfixApp [Ident ","]  l       r = l ++ r
-mkInfixApp [Ident "=>"] l       r = mkApp [Brackets '{' '}' False] (mkInfixApp [Ident "="] l [App [Ident "_"] [Ident "$"]] ++ r)
-mkInfixApp [Ident "->"] l       r = mkApp [Ident "Each"          ] (mkInfixApp [Ident "=>"] l r)
-mkInfixApp op           l       r = mkApp (mkApp op l) r
+mkInfixApp [Ident ","]  l r = l ++ r
+mkInfixApp [Ident "=>"] l r = mkApp [Brackets '{' '}' False] (mkInfixApp [Ident "="] l [App [Ident "_"] [Ident "$"]] ++ r)
+mkInfixApp [Ident "->"] l r = mkApp [Ident "Each"          ] (mkInfixApp [Ident "=>"] l r)
+mkInfixApp op           l r = mkApp (mkApp op l) r
 
 mkApp                 :: AST -> AST -> AST
 mkApp op arg          = [App op arg]
@@ -56,4 +55,4 @@ showAST [x] = show x
 showAST xs = showASTInBrackets xs
 
 showASTInBrackets :: AST -> String
-showASTInBrackets xs = "(" ++ concat (intersperse "; " (map show xs)) ++ ")" 
+showASTInBrackets xs = "(" ++ concat (intersperse "; " (map show xs)) ++ ")"

@@ -53,14 +53,20 @@ expr12comp _ (UrExpr   ) = urObject
 expr12comp _ (StrExpr x) = return.S $ x
 expr12comp _ (ChrExpr x) = return.C $ x
 expr12comp _ (NumExpr x) = return.N $ x
-expr12comp _ (AttExpr i) = return.A $ i
 expr12comp e (VarExpr i) = lookupVar i e
 expr12comp _ (IdtExpr i) = fail $ "Name expressions only allowed in left-hand side of assignments:" ++ i
-expr12comp e (ObjExpr parExpr exprProps expr) = object (expr2comp e parExpr) Map.empty (expr2comp env1 expr)
+expr12comp e (ObjExpr parExpr exprProps expr) = object (expr2comp e parExpr) compAttrs (expr2comp env1 expr)
   where 
-    compProps = fmap (expr2comp env1) exprProps
-    env1 = compProps : e
+    (compVars, compAttrs) = splitProps env1 exprProps
+    env1 = compVars : e
 expr12comp e (AppExpr ops args)   = apply (expr2comp e ops) (expr2comp e args)
+
+splitProps :: Env -> Scope -> (CompMap, CompMap)
+splitProps e s = foldr (splitProps' e) (Map.empty, Map.empty) (Map.assocs s)
+
+splitProps' :: Env -> (Expr1, Expr) -> (CompMap, CompMap) -> (CompMap, CompMap)
+splitProps' e (VarExpr i, expr) (vars, attrs) = (vars, Map.insert i (expr2comp e expr) attrs) -- assume it is an attribute
+splitProps' e (IdtExpr i, expr) (vars, attrs) = (Map.insert i (expr2comp e expr) vars, attrs)
 
 lookupVar :: String -> Env -> Comp Value
 lookupVar i [] = fail ("Undeclared variable: " ++ i)

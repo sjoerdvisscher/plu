@@ -12,6 +12,7 @@ globalScope :: CompMap
 globalScope = Map.fromList 
   [ ("_", return $ A "_")
   , ("unit", unit)
+  , ("Attr", mkFun toString (return.A))
   , ("Each", eachS)
   , ("And", andS)
   , ("Or", orS)
