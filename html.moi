@@ -1,39 +1,39 @@
-# Declare some Moiell attributes used by nodes
+# Declare some Moiell attributes used by nodes.
 @name; @attrs; @xml; @childNodes
 
-# Declare the element "class"
+# Declare the element "class".
 ?Element = {
-  # The set of xml attributes used by this type of element, empty by default
+  # The set of xml attributes used by this type of element, empty by default.
   attrs = ()
-  # The childNodes are the object contents, retrieved by evaluating it
+  # The childNodes are the object contents, retrieved by evaluating $ (the current object).
   childNodes = $()
-  # This Moiell attribute serializes the element
+  # This Moiell attribute serializes the element.
   xml = "<" ++ $.name ++ Concat($ attrXml $.attrs) ++ ">" ++ Concat($.childNodes.xml) ++ "</" ++ $.name ++ ">"
 }
 
-# attrXml takes an element and a Moiell attribute representing an xml attribute
-# is returns the xml serialization of the attribute and its value
+# attrXml takes an element and a Moiell attribute representing an xml attribute.
+# It returns the xml serialization of the attribute and its value.
 ?attrXml = ?elt -> ?attr -> " " ++ attrName.attr ++ "=\"" ++ elt.attr ++ "\""
 
-# A lookup object of attribute names
+# A lookup object of attribute names.
 ?attrName = { href = "href"; metaname = "name"; content = "content" }
 
-# Create some element types
+# Create some element types.
 ?html = Element{ name = "html" }
 ?head = Element{ name = "head" }
 ?body = Element{ name = "body" }
 ?p    = Element{ name = "p" }
 
-# The a element with href attribute
+# The a element with href attribute.
 @href
 ?a    = Element{ name = "a"; attrs = href }
 
-# The meta element with name and content attribute
+# The meta element with name and content attribute.
 @metaname; @content
 ?meta = Element{ name = "meta"; attrs = metaname, content }
 
-# An example of an xml document
-# The text nodes are still a hack
+# An example of an xml document.
+# The text nodes are still a hack.
 ?doc = html{
   head{
     meta{ metaname = "description"; content = "Moiell test" }
@@ -47,9 +47,9 @@
   }
 }
 
-# Run the serialization
+# Run the serialization.
 doc.xml
 
-# Concat a sequence of strings
+# Concat a sequence of strings.
 ?Concat = ?x,?xs => 
   x And (x ++ Concat(xs)) Or ""
