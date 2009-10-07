@@ -36,7 +36,7 @@ apply ops args = wrapDebug "apply outer" $ do
       -- put ["apply attr"]
       arg <- args
       case arg of
-        O obj -> lookupAttr idt obj
+        O obj -> withThis obj $ lookupAttr idt obj
         x     -> fail ("Attribute lookup applied to non-object: " ++ show x)
     x     -> fail ("Cannot apply a literal value: " ++ show x)
 
