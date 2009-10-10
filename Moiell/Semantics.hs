@@ -11,7 +11,7 @@ type TResult    = [Either TException Value]
 type Comp       = ReaderT TReader (ExceptionT TException (ChoiceT Id))
 type CompMap    = Map.Map TIdent (Comp Value)
 
-data Value = N Double | S String | C Char | A TIdent | O Object
+data Value = N Double | S String | A TIdent | O Object
 data Object = Ur | Object { parent :: Object, props :: CompMap, contents :: Comp Value, oEnv :: TReader }
 
 urObject :: Comp Value
@@ -97,7 +97,6 @@ showResult = unlines . map (either ("Err: " ++) show)
 instance Show Value where
   show (N n) = show n
   show (S s) = s
-  show (C c) = [c]
   show (O o) = show o
   show (A i) = "{Attribute " ++ i ++ "}" 
   

@@ -14,7 +14,6 @@ data Expr1
   | VarExpr String
   | IdtExpr String
   | StrExpr String
-  | ChrExpr Char
   | NumExpr Double
   | ThisExpr
   | UrExpr
@@ -46,7 +45,6 @@ ast2Env xs = mconcat (map ast12Env xs)
 
 ast12Env :: AST1 -> Env
 ast12Env (StringLit s) = Env [StrExpr s] Map.empty Set.empty
-ast12Env (CharLit c)   = Env [ChrExpr c] Map.empty Set.empty
 ast12Env (NumberLit n) = Env [NumExpr n] Map.empty Set.empty
 
 ast12Env (                 Ident "$") = Env [ThisExpr ] Map.empty Set.empty
@@ -90,7 +88,6 @@ instance Show Expr1 where
   show (IdtExpr i) = "?" ++ i
   show (VarExpr i) = i
   show (NumExpr i) = show i
-  show (ChrExpr c) = show c
   show (StrExpr s) = show s
   show (ThisExpr)  = "$"
   show (UrExpr)    = "Ur"

@@ -67,7 +67,6 @@ mkBinOp op = mkFun2 toDouble toDouble (\l r -> return . N $ op l r)
 toDouble :: Value -> Comp Double
 toDouble (N n) = return n
 toDouble (S s) = maybe mzero (return . fst) (listToMaybe (reads s))
-toDouble (C c) = toDouble $ S [c]
 toDouble _     = mzero
 
 toString :: Value -> Comp String

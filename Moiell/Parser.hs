@@ -83,7 +83,7 @@ simpleToken x = mkTokenParser (\(pos,t) -> if x == t then Just [] else Nothing)
 
 atomToken :: ParserForAST
 atomToken = mkTokenParser testTok where
-  testTok (pos, CharTok c)   = Just [CharLit c]
+  testTok (pos, CharTok c)   = Just [StringLit [c]]
   testTok (pos, StringTok c) = Just [StringLit c]
   testTok (pos, NumberTok c) = Just [NumberLit c]
   testTok (pos, _) = Nothing

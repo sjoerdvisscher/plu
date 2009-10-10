@@ -51,7 +51,6 @@ expr12comp :: Env -> Expr1 -> Comp Value
 expr12comp _ (ThisExpr ) = this
 expr12comp _ (UrExpr   ) = urObject
 expr12comp _ (StrExpr x) = return.S $ x
-expr12comp _ (ChrExpr x) = return.C $ x
 expr12comp _ (NumExpr x) = return.N $ x
 expr12comp e (VarExpr i) = lookupVar i e
 expr12comp _ (IdtExpr i) = fail $ "Name expressions only allowed in left-hand side of assignments:" ++ i

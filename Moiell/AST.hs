@@ -8,7 +8,6 @@ data AST1
   | Ident String
   | Brackets Char Char Bool
   | NumberLit Double
-  | CharLit Char
   | StringLit String
   deriving (Eq)
 
@@ -40,7 +39,6 @@ mkPostfixApp arg      = maybe arg (mkInfixApp [Ident "*"] arg)
 instance Show AST1 where
   show (Ident s) = s
   show (NumberLit i) = show i
-  show (CharLit   c) = show c
   show (StringLit s) = show s
   show (Brackets l r _) = [l, r]
   show (App [App [Brackets l r _] ls] rs) = showAST ls ++ [l] ++ showAST rs ++ [r]
