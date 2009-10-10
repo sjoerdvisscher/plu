@@ -96,7 +96,7 @@ showResult = unlines . map (either ("Err: " ++) show)
 
 instance Show Value where
   show (N n) = show n
-  show (S s) = s
+  show (S s) = show s
   show (O o) = show o
   show (A i) = "{Attribute " ++ i ++ "}" 
   

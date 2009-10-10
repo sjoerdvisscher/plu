@@ -6,6 +6,7 @@ import Moiell.Semantics
 import MonadLibSplit
 import Control.Monad
 import Data.Maybe
+import Data.Foldable
 import qualified Data.Map as Map
 
 globalScope :: CompMap
@@ -33,6 +34,7 @@ globalScope = Map.fromList
   , (">=", filterN2 (>=))
   , ("==", filterN2 (==))
   , ("!=", filterN2 (/=))
+  , ("chars", charsS)
   , ("throw", mkFun return throwS)
   , ("catch", catchS)
   ]
@@ -50,9 +52,7 @@ getArg :: Comp Value
 getArg = apply (return $ A "_") this
 
 mkFun :: (Value -> Comp a) -> (a -> Comp Value) -> Comp Value
-mkFun fx f = liftC $ do
-  x <- fx =<< getArg
-  f x
+mkFun fx f = liftC $ getArg >>= fx >>= f
 
 mkFun2 :: (Value -> Comp a) -> (Value -> Comp b) -> (a -> b -> Comp Value) -> Comp Value
 mkFun2 fx fy f = liftC $ do
@@ -70,7 +70,8 @@ toDouble (S s) = maybe mzero (return . fst) (listToMaybe (reads s))
 toDouble _     = mzero
 
 toString :: Value -> Comp String
-toString = return . show
+toString (S s) = return s
+toString v     = return $ show v
   
 eachS :: Comp Value
 eachS = mkFun2 return return (\body arg -> apply (return body) (return arg))
@@ -90,15 +91,14 @@ filterN2 :: (Double -> Double -> Bool) -> Comp Value
 filterN2 op = mkFun2 toDouble toDouble (\a b -> if (op a b) then (return $ N a) else mzero)
 
 headS :: Comp Value
-headS = liftC $ do
-  s <- msplit getArg
-  maybe mzero (return . fst) s
+headS = liftC $ msplit getArg >>= maybe mzero (return . fst)
 
 tailS :: Comp Value
-tailS = liftC $ do
-  s <- msplit getArg
-  maybe mzero snd s
+tailS = liftC $ msplit getArg >>= maybe mzero snd
   
+charsS :: Comp Value
+charsS = liftC $ getArg >>= toString >>= foldMap (return.S.(:[]))
+
 throwS :: Value -> Comp Value
 throwS a = do
   raise (show a)
