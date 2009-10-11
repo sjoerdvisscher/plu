@@ -40,10 +40,11 @@ infixSeq' f prec    = do
                           (\op -> (\(f1, f2) -> f1 <$> infixSeq' (mkInfixApp op (f2 value)) (rPrecedence op))
                                     (if precedence op <= prec then (id, f) else (f, id)))
 infixOperator       :: ParserForAST
-infixOperator       = try (inWS dotInfixExpr) <|> try (inOptWS ([Ident ","] <$ simpleToken Comma)) <?> "infix operator"
+infixOperator       = try (inOptWS commaToken) <|> try (inWS dotInfixExpr) <?> "infix operator"
 
-dotInfixExpr, postfixExpr, prefixExpr, bracketPostfixExpr :: ParserForAST
-dotInfixExpr        = postfixExpr `chainl1` (flip mkApp <$ simpleToken Dot) <?> "compact expression"
+compactExpr, dotInfixExpr, postfixExpr, prefixExpr, bracketPostfixExpr :: ParserForAST
+compactExpr         = commaToken <|> dotInfixExpr <?> "compact expression"
+dotInfixExpr        = postfixExpr `chainl1` (flip mkApp <$ simpleToken Dot) <?> "dot expression"
 postfixExpr         = mkPostfixApp <$> prefixExpr <*> optional identToken <?> "postfix expression"
 prefixExpr          = try (mkPrefixApp <$> identToken <*> bracketPostfixExpr) <|> bracketPostfixExpr <?> "prefix expression"
 bracketPostfixExpr  = foldl bracketPostfix <$> atomExpr <*> many bracketExpr <?> "bracket postfix expression"
@@ -53,6 +54,7 @@ atomExpr            = choice [bracketExpr, atomToken, identToken, indentBlock]
 bracketExpr         = choice [brackets '(' ')', brackets '{' '}', brackets '[' ']'] <?> "bracket expression"
 indentBlock         = between (simpleToken Indent) (simpleToken Unindent) exprs <?> "indentation block"
 seqSeparator        = simpleToken SemiColon <|> simpleToken NL
+commaToken          = [Ident ","] <$ simpleToken Comma
 
 brackets            :: Char -> Char -> ParserForAST
 brackets l r        = mkBracketsApp l r <$> betweenBrackets l r exprs

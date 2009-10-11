@@ -12,6 +12,7 @@ import qualified Data.Map as Map
 globalScope :: CompMap
 globalScope = Map.fromList 
   [ ("_", return $ A "_")
+  , (",", commaS)
   , ("unit", unit)
   , ("Attr", mkFun toString (return.A))
   , ("Each", eachS)
@@ -72,6 +73,9 @@ toDouble _     = mzero
 toString :: Value -> Comp String
 toString (S s) = return s
 toString v     = return $ show v
+
+commaS :: Comp Value
+commaS = liftC $ liftC $ mplus (runInParent getArg) getArg
   
 eachS :: Comp Value
 eachS = mkFun2 return return (\body arg -> apply (return body) (return arg))

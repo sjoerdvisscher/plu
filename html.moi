@@ -43,7 +43,8 @@
 @metaname; @content
 ?meta = Element{ name = "meta"; attrs = metaname, content }
 
-# An example of an xml document.
+
+# An example of an html document.
 ?doc = html{
   head{
     meta{ metaname = "description"; content = "Moiell test" }
@@ -60,6 +61,8 @@
 # Run the serialization.
 doc.xml
 
+
+# Helper functions
 # Concat a sequence of strings.
 ?Concat = ?x,?xs => 
   x And (x ++ Concat(xs)) Or ""
