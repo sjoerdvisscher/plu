@@ -1,5 +1,6 @@
 # Declare some Moiell attributes used by nodes.
-@name; @attrs; @xml; @childNodes
+@name; @attrs; @xml; @childNodes; @nodeValue
+
 
 # Declare the element "class".
 ?Element = {
@@ -18,6 +19,16 @@
 # A lookup object of attribute names.
 ?attrName = { href = "href"; metaname = "name"; content = "content" }
 
+
+# Declare the text node "class".
+?TextNode = {
+  xml = $.nodeValue
+}
+
+# Shorthand for creating text nodes.
+?% = ?s -> TextNode{ nodeValue = s }
+
+
 # Create some element types.
 ?html = Element{ name = "html" }
 ?head = Element{ name = "head" }
@@ -33,16 +44,15 @@
 ?meta = Element{ name = "meta"; attrs = metaname, content }
 
 # An example of an xml document.
-# The text nodes are still a hack.
 ?doc = html{
   head{
     meta{ metaname = "description"; content = "Moiell test" }
   }
   body{
     p{
-      { xml = "Hallo " }
-      a{ href = "w3future.com"; { xml = "link" } }
-      { xml = " Doei!" }
+      %"Hallo "
+      a{ href = "w3future.com"; %"link" }
+      %" Doei!"
     }
   }
 }

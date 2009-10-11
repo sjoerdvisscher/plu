@@ -12,7 +12,7 @@ type Comp       = ReaderT TReader (ExceptionT TException (ChoiceT Id))
 type CompMap    = Map.Map TIdent (Comp Value)
 
 data Value = N Double | S String | A TIdent | O Object
-data Object = Ur | Object { parent :: Object, props :: CompMap, contents :: Comp Value, oEnv :: TReader }
+data Object = Ur | Object { parent :: Object, attrs :: CompMap, contents :: Comp Value, oEnv :: TReader }
 
 urObject :: Comp Value
 urObject = return.O $ Ur
@@ -36,7 +36,7 @@ apply ops args = wrapDebug "apply outer" $ do
       -- put ["apply attr"]
       arg <- args
       case arg of
-        O obj -> withThis obj $ lookupAttr idt obj
+        O obj -> local (obj : oEnv obj) $ lookupAttr idt obj
         x     -> fail ("Attribute lookup applied to non-object: " ++ show x)
     x     -> fail ("Cannot apply a literal value: " ++ show x)
 
@@ -79,12 +79,12 @@ wrapDebug s c = c
 
 lookupAttr :: TIdent -> Object -> Comp Value
 lookupAttr i Ur = fail ("Could not find attribute: " ++ i)
-lookupAttr i obj = Map.findWithDefault (lookupAttr i $ parent obj) i $ props obj
+lookupAttr i obj = Map.findWithDefault (lookupAttr i $ parent obj) i $ attrs obj
 
 setAttr :: TIdent -> Comp Value -> Object -> Comp Object
 setAttr i args obj = wrapDebug "outer setAttr" $ do
   these <- ask
-  return $ obj{ props = Map.insert i (wrapDebug "middle setAttr" $ local these (wrapDebug "inner setAttr" args)) $ props obj }
+  return $ obj{ attrs = Map.insert i (wrapDebug "middle setAttr" $ local these (wrapDebug "inner setAttr" args)) $ attrs obj }
 
 
 
