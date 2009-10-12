@@ -12,79 +12,61 @@ type Comp       = ReaderT TReader (ExceptionT TException (ChoiceT Id))
 type CompMap    = Map.Map TIdent (Comp Value)
 
 data Value = N Double | S String | A TIdent | O Object
-data Object = Ur | Object { parent :: Object, attrs :: CompMap, contents :: Comp Value, oEnv :: TReader }
+data Object = Ur | Object { parent :: Object, attrs :: CompMap, oEnv :: TReader }
+
+inAttr = "_"
+outAttr = "()"
+
 
 urObject :: Comp Value
 urObject = return.O $ Ur
 
 object :: Comp Value -> CompMap -> Comp Value -> Comp Value
-object parComp ps c = do
+object parComp attrs content = do
   val <- parComp
   env <- ask
   case val of
-    O par -> return.O $ Object par ps c env
+    O par -> return.O $ setAttr outAttr content $ Object par attrs env
     x     -> fail ("Cannot extend from a non-object: " ++ show x)
 
 apply :: Comp Value -> Comp Value -> Comp Value
-apply ops args = wrapDebug "apply outer" $ do
-  val <- ops
-  case val of
-    O obj -> wrapDebug "apply object" $ do
-      newObj <- setAttr "_" args obj
-      local (newObj : oEnv newObj) (contents newObj)
-    A idt -> wrapDebug "apply attr" $ do
-      -- put ["apply attr"]
-      arg <- args
-      case arg of
-        O obj -> local (obj : oEnv obj) $ lookupAttr idt obj
-        x     -> fail ("Attribute lookup applied to non-object: " ++ show x)
-    x     -> fail ("Cannot apply a literal value: " ++ show x)
-
-eval :: Comp Value -> Comp Value
-eval c = do
-  val <- c
-  case val of
-    O obj -> contents obj
-    x     -> fail ("Cannot evaluate a non-object: " ++ show x)
+apply fs xs = do
+  f <- fs
+  case f of
+    
+    O obj -> do
+      env <- ask
+      evalAttr outAttr $ setAttr inAttr (local env xs) obj
+      
+    A attrName -> do
+      x <- xs
+      case x of
+        O obj -> evalAttr attrName obj
+        v     -> fail ("Attribute lookup applied to non-object: " ++ show v)
+        
+    v     -> fail ("Cannot apply a literal value: " ++ show v)
 
 
 this :: Comp Value
 this = do
-  env <- getThis
-  return.O $ env
+  env <- ask
+  return.O $ head env
   
-getThis :: Comp Object
-getThis = do
-  these <- ask
-  return $ head these
-
-withThis :: Object -> Comp Value -> Comp Value
-withThis o c = do
-  these <- ask
-  local (o:these) (wrapDebug "withThis inner" c)
-
 runInParent :: Comp Value -> Comp Value
 runInParent c = do
-  these <- ask
-  local (tail these) (wrapDebug "runInParent inner" c)
+  env <- ask
+  local (tail env) c
 
-debugStack s = do
-  these <- ask
-  raise $ s ++ show these
-  mzero
 
-wrapDebug :: String -> Comp a -> Comp a
--- wrapDebug s c = (debugStack ("Before " ++ s)) `mplus` c `mplus` (debugStack ("After " ++ s))
-wrapDebug s c = c
+evalAttr :: TIdent -> Object -> Comp Value
+evalAttr attrName obj = local (obj : oEnv obj) (lookupAttr attrName obj)
 
 lookupAttr :: TIdent -> Object -> Comp Value
-lookupAttr i Ur = fail ("Could not find attribute: " ++ i)
-lookupAttr i obj = Map.findWithDefault (lookupAttr i $ parent obj) i $ attrs obj
+lookupAttr attrName Ur = fail ("Could not find attribute: " ++ attrName)
+lookupAttr attrName obj = Map.findWithDefault (lookupAttr attrName $ parent obj) attrName $ attrs obj
 
-setAttr :: TIdent -> Comp Value -> Object -> Comp Object
-setAttr i args obj = wrapDebug "outer setAttr" $ do
-  these <- ask
-  return $ obj{ attrs = Map.insert i (wrapDebug "middle setAttr" $ local these (wrapDebug "inner setAttr" args)) $ attrs obj }
+setAttr :: TIdent -> Comp Value -> Object -> Object
+setAttr attrName attrValue obj = obj{ attrs = Map.insert attrName attrValue $ attrs obj }
 
 
 
@@ -102,4 +84,4 @@ instance Show Value where
   
 instance Show Object where
   show Ur = "{}"
-  show (Object par prps c e) = show par ++ "{" ++ show (Map.keys prps) ++ "}"
+  show (Object par prps e) = show par ++ "{" ++ show (Map.keys prps) ++ "}"
