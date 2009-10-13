@@ -1,10 +1,11 @@
 import Moiell
+import Moiell.Semantics
 
 main :: IO ()
-main = runFile "test.moi" >>= putStr . showResult
+main = f "test"
 
 r :: String -> IO ()
-r = putStr . showResult . runString
+r s = putStr $ run (compileString s :: Comp Value)
 
 f :: String -> IO ()
-f n = runFile (n ++ ".moi") >>= putStr . showResult
+f n = (compileFile (n ++ ".moi") :: IO (Comp Value)) >>= putStr . run

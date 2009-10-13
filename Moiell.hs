@@ -1,57 +1,69 @@
+{-# LANGUAGE ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies #-}
 module Moiell(
-  runString,
-  runFile,
-  debugString,
-  debugFile,
+  compileString,
+  compileFile,
+  -- debugAST,
 
-  Comp, 
-  Value(..), 
-  Object(..),
-
-  showResult) 
+  Moiell(..)) 
 where
 
 import Moiell.Expr
-import Moiell.Globals
-import Moiell.Semantics
--- import Moiell.DebugSemantics
 
 import Control.Monad
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
+type CompMap c v = Map.Map String (c v)
+type Env c v = [CompMap c v]
 
-runString :: String -> TResult
-runString = runWithEnv globalObject . expr2comp [globalScope] . checkVariables . parseString
-runFile :: String -> IO TResult
-runFile fileName = do
-  parseResult <- parseFile fileName
-  return $ runWithEnv globalObject $ expr2comp [globalScope] $ checkVariables parseResult
-debugString :: String -> IO ()
-debugString = putStrLn . showExpr . checkVariables . parseString
-debugFile :: String -> IO ()
-debugFile fileName = do
-  parseResult <- parseFile fileName
-  putStrLn $ showExpr $ checkVariables parseResult
+class (MonadPlus c) => Moiell c v | c -> v where
+  urObject :: c v
+  object :: c v -> CompMap c v -> c v -> c v
+  string :: String -> c v
+  number :: Double -> c v
   
-checkVariables :: (Expr, Set.Set String) -> Expr
-checkVariables (expr, frees) = 
+  apply :: c v -> c v -> c v
+  
+  this :: c v
+  runInParent :: c v -> c v 
+  
+  run :: c v -> String
+  globalScope :: Map.Map String (c v)
+
+  lookupVar :: String -> Env c v -> c v
+  lookupVar i [] = fail ("Undeclared variable: " ++ i)
+  lookupVar i (e:p) = maybe (runInParent $ lookupVar i p) id $ Map.lookup i e
+
+  compile :: (Expr, Set.Set String) -> c v
+  compile = expr2comp [globalScope :: Map.Map String (c v)] . checkVariables (globalScope :: Map.Map String (c v))
+
+compileString :: Moiell c v => String -> c v
+compileString = compile . parseString
+
+compileFile :: Moiell c v => String -> IO (c v)
+compileFile fileName = do
+  parseResult <- parseFile fileName
+  (return . compile) parseResult
+
+-- debugAST :: String -> IO ()
+-- debugAST = putStrLn . showExpr . checkVariables . parseString
+  
+checkVariables :: Moiell c v => CompMap c v -> (Expr, Set.Set String) -> Expr
+checkVariables globs (expr, frees) = 
   if Set.null undeclared then expr else 
     error ("Undeclared variables: " ++ (foldr1 (\l r -> l ++ ", " ++ r) $ Set.toList undeclared))
   where
-    undeclared = Set.filter (flip Map.notMember globalScope) frees 
+    undeclared = Set.filter (flip Map.notMember globs) frees 
 
-
-type Env = [CompMap]
-
-expr2comp :: Env -> Expr -> Comp Value
+  
+expr2comp :: Moiell c v => Env c v -> Expr -> c v
 expr2comp e xs = msum (map (expr12comp e) xs)
 
-expr12comp :: Env -> Expr1 -> Comp Value
+expr12comp :: Moiell c v => Env c v -> Expr1 -> c v
 expr12comp _ (ThisExpr ) = this
 expr12comp _ (UrExpr   ) = urObject
-expr12comp _ (StrExpr x) = return.S $ x
-expr12comp _ (NumExpr x) = return.N $ x
+expr12comp _ (StrExpr x) = string x
+expr12comp _ (NumExpr x) = number x
 expr12comp e (VarExpr i) = lookupVar i e
 expr12comp _ (IdtExpr i) = fail $ "Name expressions only allowed in left-hand side of assignments:" ++ i
 expr12comp e (ObjExpr parExpr exprProps expr) = object (expr2comp e parExpr) compAttrs (expr2comp env1 expr)
@@ -60,13 +72,10 @@ expr12comp e (ObjExpr parExpr exprProps expr) = object (expr2comp e parExpr) com
     env1 = compVars : e
 expr12comp e (AppExpr ops args)   = apply (expr2comp e ops) (expr2comp e args)
 
-splitProps :: Env -> Scope -> (CompMap, CompMap)
+splitProps :: Moiell c v => Env c v -> Scope -> (CompMap c v, CompMap c v)
 splitProps e s = foldr (splitProps' e) (Map.empty, Map.empty) (Map.assocs s)
 
-splitProps' :: Env -> (Expr1, Expr) -> (CompMap, CompMap) -> (CompMap, CompMap)
+splitProps' :: Moiell c v => Env c v -> (Expr1, Expr) -> (CompMap c v, CompMap c v) -> (CompMap c v, CompMap c v)
 splitProps' e (VarExpr i, expr) (vars, attrs) = (vars, Map.insert i (expr2comp e expr) attrs) -- assume it is an attribute
 splitProps' e (IdtExpr i, expr) (vars, attrs) = (Map.insert i (expr2comp e expr) vars, attrs)
 
-lookupVar :: String -> Env -> Comp Value
-lookupVar i [] = fail ("Undeclared variable: " ++ i)
-lookupVar i (e:p) = maybe (runInParent $ lookupVar i p) id $ Map.lookup i e
