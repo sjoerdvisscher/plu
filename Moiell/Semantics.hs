@@ -1,4 +1,4 @@
-{-# LANGUAGE Rank2Types, MultiParamTypeClasses, TypeSynonymInstances #-}
+{-# LANGUAGE Rank2Types, TypeSynonymInstances #-}
 module Moiell.Semantics where
 
 import Moiell
@@ -13,6 +13,7 @@ type TReader    = [Object]
 type TIdent     = String
 type TResult    = [Either TException Value]
 type CompMap    = Map.Map TIdent (Comp Value)
+type CompValue  = Comp Value
 
 data Value = N Double | S String | A TIdent | O Object
 data Object = Ur | Object { parent :: Object, attrs :: CompMap, oEnv :: TReader }
@@ -21,7 +22,7 @@ inAttr = "_"
 outAttr = "()"
 
 
-instance Moiell Comp Value where
+instance Moiell CompValue where
 
   -- urObject :: Comp Value
   urObject = return.O $ Ur
@@ -57,6 +58,12 @@ instance Moiell Comp Value where
         
       v     -> fail ("Cannot apply a literal value: " ++ show v)
 
+  -- csum :: [Comp Value] -> Comp Value
+  csum = msum
+  
+  -- err :: String -> Comp Value
+  err = fail
+  
 
   -- this :: Comp Value
   this = do

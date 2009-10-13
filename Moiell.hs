@@ -1,4 +1,4 @@
-{-# LANGUAGE ScopedTypeVariables, MultiParamTypeClasses, FunctionalDependencies #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Moiell(
   compileString,
   compileFile,
@@ -9,38 +9,39 @@ where
 
 import Moiell.Expr
 
-import Control.Monad
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
-type CompMap c v = Map.Map String (c v)
-type Env c v = [CompMap c v]
+type CompMap c = Map.Map String c
+type Env c = [CompMap c]
 
-class (MonadPlus c) => Moiell c v | c -> v where
-  urObject :: c v
-  object :: c v -> CompMap c v -> c v -> c v
-  string :: String -> c v
-  number :: Double -> c v
+class Moiell c where
+  urObject :: c
+  object :: c -> CompMap c -> c -> c
+  string :: String -> c
+  number :: Double -> c
   
-  apply :: c v -> c v -> c v
+  apply :: c -> c -> c
+  csum :: [c] -> c
+  err :: String -> c
   
-  this :: c v
-  runInParent :: c v -> c v 
+  this :: c
+  runInParent :: c -> c 
   
-  run :: c v -> String
-  globalScope :: Map.Map String (c v)
+  run :: c -> String
+  globalScope :: Map.Map String c
 
-  lookupVar :: String -> Env c v -> c v
-  lookupVar i [] = fail ("Undeclared variable: " ++ i)
+  lookupVar :: String -> Env c -> c
+  lookupVar i [] = err ("Undeclared variable: " ++ i)
   lookupVar i (e:p) = maybe (runInParent $ lookupVar i p) id $ Map.lookup i e
 
-  compile :: (Expr, Set.Set String) -> c v
-  compile = expr2comp [globalScope :: Map.Map String (c v)] . checkVariables (globalScope :: Map.Map String (c v))
+  compile :: (Expr, Set.Set String) -> c
+  compile = expr2comp [globalScope :: Map.Map String c] . checkVariables (globalScope :: Map.Map String c)
 
-compileString :: Moiell c v => String -> c v
+compileString :: Moiell c => String -> c
 compileString = compile . parseString
 
-compileFile :: Moiell c v => String -> IO (c v)
+compileFile :: Moiell c => String -> IO c
 compileFile fileName = do
   parseResult <- parseFile fileName
   (return . compile) parseResult
@@ -48,7 +49,7 @@ compileFile fileName = do
 -- debugAST :: String -> IO ()
 -- debugAST = putStrLn . showExpr . checkVariables . parseString
   
-checkVariables :: Moiell c v => CompMap c v -> (Expr, Set.Set String) -> Expr
+checkVariables :: Moiell c => CompMap c -> (Expr, Set.Set String) -> Expr
 checkVariables globs (expr, frees) = 
   if Set.null undeclared then expr else 
     error ("Undeclared variables: " ++ (foldr1 (\l r -> l ++ ", " ++ r) $ Set.toList undeclared))
@@ -56,26 +57,26 @@ checkVariables globs (expr, frees) =
     undeclared = Set.filter (flip Map.notMember globs) frees 
 
   
-expr2comp :: Moiell c v => Env c v -> Expr -> c v
-expr2comp e xs = msum (map (expr12comp e) xs)
+expr2comp :: Moiell c => Env c -> Expr -> c
+expr2comp e xs = csum (map (expr12comp e) xs)
 
-expr12comp :: Moiell c v => Env c v -> Expr1 -> c v
+expr12comp :: Moiell c => Env c -> Expr1 -> c
 expr12comp _ (ThisExpr ) = this
 expr12comp _ (UrExpr   ) = urObject
 expr12comp _ (StrExpr x) = string x
 expr12comp _ (NumExpr x) = number x
 expr12comp e (VarExpr i) = lookupVar i e
-expr12comp _ (IdtExpr i) = fail $ "Name expressions only allowed in left-hand side of assignments:" ++ i
+expr12comp _ (IdtExpr i) = err $ "Name expressions only allowed in left-hand side of assignments:" ++ i
 expr12comp e (ObjExpr parExpr exprProps expr) = object (expr2comp e parExpr) compAttrs (expr2comp env1 expr)
   where 
     (compVars, compAttrs) = splitProps env1 exprProps
     env1 = compVars : e
 expr12comp e (AppExpr ops args)   = apply (expr2comp e ops) (expr2comp e args)
 
-splitProps :: Moiell c v => Env c v -> Scope -> (CompMap c v, CompMap c v)
+splitProps :: Moiell c => Env c -> Scope -> (CompMap c, CompMap c)
 splitProps e s = foldr (splitProps' e) (Map.empty, Map.empty) (Map.assocs s)
 
-splitProps' :: Moiell c v => Env c v -> (Expr1, Expr) -> (CompMap c v, CompMap c v) -> (CompMap c v, CompMap c v)
+splitProps' :: Moiell c => Env c -> (Expr1, Expr) -> (CompMap c, CompMap c) -> (CompMap c, CompMap c)
 splitProps' e (VarExpr i, expr) (vars, attrs) = (vars, Map.insert i (expr2comp e expr) attrs) -- assume it is an attribute
 splitProps' e (IdtExpr i, expr) (vars, attrs) = (Map.insert i (expr2comp e expr) vars, attrs)
 
