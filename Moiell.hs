@@ -7,36 +7,17 @@ module Moiell(
   Moiell(..)) 
 where
 
+import Moiell.Class
 import Moiell.Expr
+import Moiell.Globals
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 type CompMap c = Map.Map String c
-type Env c = [CompMap c]
 
-class Moiell c where
-  urObject :: c
-  object :: c -> CompMap c -> c -> c
-  string :: String -> c
-  number :: Double -> c
-  
-  apply :: c -> c -> c
-  csum :: [c] -> c
-  err :: String -> c
-  
-  this :: c
-  runInParent :: c -> c 
-  
-  run :: c -> String
-  globalScope :: Map.Map String c
-
-  lookupVar :: String -> Env c -> c
-  lookupVar i [] = err ("Undeclared variable: " ++ i)
-  lookupVar i (e:p) = maybe (runInParent $ lookupVar i p) id $ Map.lookup i e
-
-  compile :: (Expr, Set.Set String) -> c
-  compile = expr2comp [globalScope :: Map.Map String c] . checkVariables (globalScope :: Map.Map String c)
+compile :: forall c. Moiell c => (Expr, Set.Set String) -> c
+compile = expr2comp [globalScope] . checkVariables (globalScope :: CompMap c)
 
 compileString :: Moiell c => String -> c
 compileString = compile . parseString
@@ -57,7 +38,7 @@ checkVariables globs (expr, frees) =
     undeclared = Set.filter (flip Map.notMember globs) frees 
 
   
-expr2comp :: Moiell c => Env c -> Expr -> c
+expr2comp :: Moiell c => [Map.Map String c] -> Expr -> c
 expr2comp e xs = csum (map (expr12comp e) xs)
 
 expr12comp :: Moiell c => Env c -> Expr1 -> c

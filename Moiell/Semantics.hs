@@ -1,14 +1,13 @@
 {-# LANGUAGE Rank2Types, TypeSynonymInstances #-}
 module Moiell.Semantics where
 
-import Moiell
+import Moiell.Class
 import MonadLibSplit
-import qualified Data.Map as Map
 import Data.Maybe (listToMaybe)
-import Data.Foldable (foldMap)
+import qualified Data.Map as Map
 
 type Comp       = ReaderT TReader (ExceptionT TException (ChoiceT Id))
-type TException = String
+type TException = Value
 type TReader    = [Object]
 type TIdent     = String
 type TResult    = [Either TException Value]
@@ -24,7 +23,6 @@ outAttr = "()"
 
 instance Moiell CompValue where
 
-  -- urObject :: Comp Value
   urObject = return.O $ Ur
 
   -- object :: Comp Value -> CompMap -> Comp Value -> Comp Value
@@ -35,11 +33,16 @@ instance Moiell CompValue where
       O par -> return.O $ setAttr outAttr content $ Object par attrs env
       x     -> fail ("Cannot extend from a non-object: " ++ show x)
 
-  -- string :: String -> Comp Value
+  attrib = return . A
   string = return . S
-  
-  -- number :: Double -> Comp Value
   number = return . N
+  
+  eachC f = mkFun return (f . return)
+  eachC2 f = mkFun2 return return (\a b -> f (return a) (return b))
+  liftCS = mkFun toString
+  liftCN = mkFun toDouble
+  liftC2S = mkFun2 toString toString
+  liftC2N = mkFun2 toDouble toDouble
 
   -- apply :: Comp Value -> Comp Value -> Comp Value
   apply fs xs = do
@@ -58,27 +61,23 @@ instance Moiell CompValue where
         
       v     -> fail ("Cannot apply a literal value: " ++ show v)
 
-  -- csum :: [Comp Value] -> Comp Value
   csum = msum
+  empty = mzero
+  split emptyC splitC c = msplit c >>= maybe emptyC (\(h, t) -> splitC (return h) t)
   
-  -- err :: String -> Comp Value
+  throw = liftC $ (getArg >>= raise) >> mzero
+  catch = liftC $ liftC $ (try (inParent getArg) >>= either (apply getArg . return) return)
   err = fail
-  
 
-  -- this :: Comp Value
   this = do
     env <- ask
     return.O $ head env
   
-  -- runInParent :: Comp Value -> Comp Value
-  runInParent c = do
+  inParent c = do
     env <- ask
     local (tail env) c
 
   
-  -- globalScope :: CompMap
-  globalScope = globalScopeS
-
   -- run :: Comp Value -> String
   run = showResult . runWithEnv globalObject
 
@@ -95,68 +94,24 @@ setAttr :: TIdent -> Comp Value -> Object -> Object
 setAttr attrName attrValue obj = obj{ attrs = Map.insert attrName attrValue $ attrs obj }
 
 
-
-runWithEnv :: Object -> Comp Value -> [Either TException Value]
-runWithEnv env = runId . findAll . runExceptionT . runReaderT [env]
-
-showResult :: [Either TException Value] -> String
-showResult = unlines . map (either ("Err: " ++) show)
-
-instance Show Value where
-  show (N n) = show n
-  show (S s) = show s
-  show (O o) = show o
-  show (A i) = "{Attribute " ++ i ++ "}" 
-  
-instance Show Object where
-  show Ur = "{}"
-  show (Object par prps e) = show par ++ "{" ++ show (Map.keys prps) ++ "}"
-
-
-
-
-globalScopeS :: CompMap
-globalScopeS = Map.fromList 
-  [ ("_", return $ A "_")
-  , (",", commaS)
-  , ("unit", unit)
-  , ("Attr", mkFun toString (return.A))
-  , ("Each", eachS)
-  , ("And", andS)
-  , ("Or", orS)
-  , ("Not",  notS)
-  , ("Head", headS)
-  , ("Tail", tailS)
-  , ("Filter", filterS)
-  , ("+", mkBinOp (+))
-  , ("-", mkBinOp (-))
-  , ("*", mkBinOp (*))
-  , ("/", mkBinOp (/))
-  , ("div", mkBinOp (\l r -> fst (l `divMod'` r)))
-  , ("mod", mkBinOp (\l r -> snd (l `divMod'` r)))
-  , ("++", mkFun2 toString toString (\l r -> return . S $ l ++ r))
-  , ("<", filterN2 (<))
-  , ("<=", filterN2 (<=))
-  , (">", filterN2 (>))
-  , (">=", filterN2 (>=))
-  , ("==", filterN2 (==))
-  , ("!=", filterN2 (/=))
-  , ("chars", charsS)
-  , ("throw", mkFun return throwS)
-  , ("catch", catchS)
-  ]
-
-globalObject :: Object
-globalObject = Ur
-
 liftC :: Comp Value -> Comp Value
-liftC = object (return.O $ Ur) Map.empty
-
-unit :: Comp Value
-unit = liftC unit
+liftC content = do
+  env <- ask
+  return.O $ setAttr outAttr content $ Object Ur Map.empty env
 
 getArg :: Comp Value
-getArg = apply (return $ A "_") this
+getArg = do
+  env <- ask
+  evalAttr "_" $ head env
+
+toDouble :: Value -> Comp Double
+toDouble (N n) = return n
+toDouble (S s) = maybe mzero (return . fst) (listToMaybe (reads s))
+toDouble _     = mzero
+
+toString :: Value -> Comp String
+toString (S s) = return s
+toString v     = return $ show v
 
 mkFun :: (Value -> Comp a) -> (a -> Comp Value) -> Comp Value
 mkFun fx f = liftC $ getArg >>= fx >>= f
@@ -168,57 +123,22 @@ mkFun2 fx fy f = liftC $ do
     y <- fy =<< getArg
     f x y
 
-mkBinOp :: (Double -> Double -> Double) -> Comp Value
-mkBinOp op = mkFun2 toDouble toDouble (\l r -> return . N $ op l r)
 
-toDouble :: Value -> Comp Double
-toDouble (N n) = return n
-toDouble (S s) = maybe mzero (return . fst) (listToMaybe (reads s))
-toDouble _     = mzero
+globalObject :: Object
+globalObject = Ur
 
-toString :: Value -> Comp String
-toString (S s) = return s
-toString v     = return $ show v
+runWithEnv :: Object -> Comp Value -> [Either TException Value]
+runWithEnv env = runId . findAll . runExceptionT . runReaderT [env]
 
-commaS :: Comp Value
-commaS = liftC $ liftC $ mplus (runInParent getArg) getArg
+showResult :: [Either TException Value] -> String
+showResult = unlines . map (either (("Err: " ++) . show) show)
+
+instance Show Value where
+  show (N n) = show n
+  show (S s) = show s
+  show (O o) = show o
+  show (A i) = "{Attribute " ++ i ++ "}" 
   
-eachS :: Comp Value
-eachS = mkFun2 return return (\body arg -> apply (return body) (return arg))
-
-filterS :: Comp Value
-filterS = mkFun2 return return (\arg test -> ifS (apply (return test) (return arg)) (const $ return arg) mzero)
-
-ifS :: Comp Value -> ((Value, Comp Value) -> Comp Value) -> Comp Value -> Comp Value
-ifS testComp th falseComp = msplit testComp >>= maybe falseComp th
-  
-notS, andS, orS :: Comp Value
-notS = liftC $ ifS getArg (const mzero) unit
-andS = liftC $ do x <- msplit getArg; liftC $ maybe mzero (const getArg) x
-orS  = liftC $ do x <- msplit getArg; liftC $ maybe getArg (\(h, t) -> return h `mplus` t) x
-
-filterN2 :: (Double -> Double -> Bool) -> Comp Value
-filterN2 op = mkFun2 toDouble toDouble (\a b -> if (op a b) then (return $ N a) else mzero)
-
-headS :: Comp Value
-headS = liftC $ msplit getArg >>= maybe mzero (return . fst)
-
-tailS :: Comp Value
-tailS = liftC $ msplit getArg >>= maybe mzero snd
-  
-charsS :: Comp Value
-charsS = liftC $ getArg >>= toString >>= foldMap (return.S.(:[]))
-
-throwS :: Value -> Comp Value
-throwS a = do
-  raise (show a)
-  mzero
-  
-catchS :: Comp Value
-catchS = liftC $ liftC $ (try c >>= either (apply hnd . return . S) return)
-  where
-    c = runInParent getArg
-    hnd = getArg
-
-divMod' :: Double -> Double -> (Double, Double)
-divMod' n d = (f, n - f * d) where f = fromIntegral $ floor $ n / d
+instance Show Object where
+  show Ur = "{}"
+  show (Object par prps e) = show par ++ "{" ++ show (Map.keys prps) ++ "}"
