@@ -32,9 +32,9 @@ class Moiell c where
   split :: c -> (c -> c -> c) -> c -> c
   
   -- Throw catchable errors.
-  throw :: c
+  throw :: c -> c
   -- Catch catchable errors.
-  catch :: c
+  catch :: c -> c -> c
   -- Throw fatal errors.
   fatal :: String -> c
   

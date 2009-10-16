@@ -32,8 +32,8 @@ globalScope = Map.fromList
   , ("==", filterN2 (==))
   , ("!=", filterN2 (/=))
   , ("chars", charsS)
-  , ("throw", throw)
-  , ("catch", Moiell.Class.catch)
+  , ("throw", liftC $ throw getArg)
+  , ("catch", liftC $ liftC $ (inParent getArg) `Moiell.Class.catch` getArg)
   ]
 
 liftC :: Moiell c => c -> c

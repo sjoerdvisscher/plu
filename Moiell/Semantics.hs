@@ -62,8 +62,8 @@ instance Moiell CompValue where
   empty = mzero
   split emptyC splitC c = msplit c >>= maybe emptyC (\(h, t) -> splitC (return h) t)
   
-  throw = liftC $ (getArg >>= raise) >> mzero
-  catch = liftC $ liftC $ (try (inParent getArg) >>= either (apply getArg . return) return)
+  throw e = (e >>= raise) >> mzero
+  c `catch` h = try c >>= either (apply h . return) return
   fatal = fail
 
   this = do
@@ -91,16 +91,6 @@ setAttr :: TIdent -> Comp Value -> Object -> Object
 setAttr attrName attrValue obj = obj{ attrs = Map.insert attrName attrValue $ attrs obj }
 
 
-liftC :: Comp Value -> Comp Value
-liftC content = do
-  env <- ask
-  return.O $ setAttr outAttr content $ Object Ur Map.empty env
-
-getArg :: Comp Value
-getArg = do
-  env <- ask
-  evalAttr "_" $ head env
-
 toDouble :: Value -> Comp Double
 toDouble (N n) = return n
 toDouble (S s) = maybe mzero (return . fst) (listToMaybe (reads s))
@@ -111,14 +101,7 @@ toString (S s) = return s
 toString v     = return $ show v
 
 mkFun :: (Value -> Comp a) -> (a -> Comp Value) -> Comp Value
-mkFun fx f = liftC $ getArg >>= fx >>= f
-
-mkFun2 :: (Value -> Comp a) -> (Value -> Comp b) -> (a -> b -> Comp Value) -> Comp Value
-mkFun2 fx fy f = liftC $ do
-  x <- fx =<< getArg
-  liftC $ do
-    y <- fy =<< getArg
-    f x y
+mkFun fx f = object urObject Map.empty $ this >>= (\(O o) -> evalAttr "_" o) >>= fx >>= f
 
 
 globalObject :: Object
