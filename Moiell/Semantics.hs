@@ -38,11 +38,8 @@ instance Moiell CompValue where
   number = return . N
   
   eachC f = mkFun return (f . return)
-  eachC2 f = mkFun2 return return (\a b -> f (return a) (return b))
-  liftCS = mkFun toString
-  liftCN = mkFun toDouble
-  liftC2S = mkFun2 toString toString
-  liftC2N = mkFun2 toDouble toDouble
+  eachCS = mkFun toString
+  eachCN = mkFun toDouble
 
   -- apply :: Comp Value -> Comp Value -> Comp Value
   apply fs xs = do
@@ -67,7 +64,7 @@ instance Moiell CompValue where
   
   throw = liftC $ (getArg >>= raise) >> mzero
   catch = liftC $ liftC $ (try (inParent getArg) >>= either (apply getArg . return) return)
-  err = fail
+  fatal = fail
 
   this = do
     env <- ask

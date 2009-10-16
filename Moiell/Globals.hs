@@ -10,7 +10,7 @@ globalScope = Map.fromList
   [ ("_", attrib "_")
   , (",", commaS)
   , ("unit", unit)
-  , ("Attr", liftCS attrib)
+  , ("Attr", eachCS attrib)
   , ("Each", eachS)
   , ("And", andS)
   , ("Or", orS)
@@ -24,7 +24,7 @@ globalScope = Map.fromList
   , ("/", mkBinOp (/))
   , ("div", mkBinOp (\l r -> fst (l `divMod'` r)))
   , ("mod", mkBinOp (\l r -> snd (l `divMod'` r)))
-  , ("++", liftC2S (\l r -> string $ l ++ r))
+  , ("++", eachCS (\l -> eachCS (\r -> string $ l ++ r)))
   , ("<", filterN2 (<))
   , ("<=", filterN2 (<=))
   , (">", filterN2 (>))
@@ -46,16 +46,16 @@ getArg :: Moiell c => c
 getArg = apply (attrib "_") this
 
 mkBinOp :: Moiell c => (Double -> Double -> Double) -> c
-mkBinOp op = liftC2N (\l r -> number $ op l r)
+mkBinOp op = eachCN (\l -> eachCN (\r -> number $ op l r))
 
 commaS :: Moiell c => c
 commaS = liftC $ liftC $ csum [inParent getArg, getArg]
   
 eachS :: Moiell c => c
-eachS = eachC2 apply
+eachS = eachC (\body -> eachC (\arg -> body `apply` arg))
 
 filterS :: Moiell c => c
-filterS = eachC2 (\arg test -> split empty (\h t -> arg) (test `apply` arg))
+filterS = eachC (\arg -> eachC (\test -> split empty (\h t -> arg) (test `apply` arg)))
   
 notS, andS, orS :: Moiell c => c
 notS = liftC $ split unit (\h t -> empty) getArg
@@ -63,7 +63,7 @@ andS = liftC $ liftC $ split empty (\h t -> getArg) $ inParent getArg
 orS  = liftC $ liftC $ split getArg (\h t -> csum [h, t]) $ inParent getArg
 
 filterN2 :: Moiell c => (Double -> Double -> Bool) -> c
-filterN2 op = liftC2N (\a b -> if op a b then number a else empty)
+filterN2 op = eachCN (\a -> eachCN (\b -> if op a b then number a else empty))
 
 headS :: Moiell c => c
 headS = liftC $ split empty (\h t -> h) getArg
@@ -72,7 +72,7 @@ tailS :: Moiell c => c
 tailS = liftC $ split empty (\h t -> t) getArg
   
 charsS :: Moiell c => c
-charsS = liftCS $ csum . map (string . (:[]))
+charsS = eachCS $ csum . map (string . (:[]))
 
 
 divMod' :: Double -> Double -> (Double, Double)

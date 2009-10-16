@@ -15,6 +15,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 
 type CompMap c = Map.Map String c
+type Env c = [CompMap c]
 
 compile :: forall c. Moiell c => (Expr, Set.Set String) -> c
 compile = expr2comp [globalScope] . checkVariables (globalScope :: CompMap c)
@@ -38,7 +39,7 @@ checkVariables globs (expr, frees) =
     undeclared = Set.filter (flip Map.notMember globs) frees 
 
   
-expr2comp :: Moiell c => [Map.Map String c] -> Expr -> c
+expr2comp :: Moiell c => Env c -> Expr -> c
 expr2comp e xs = csum (map (expr12comp e) xs)
 
 expr12comp :: Moiell c => Env c -> Expr1 -> c
@@ -47,7 +48,7 @@ expr12comp _ (UrExpr   ) = urObject
 expr12comp _ (StrExpr x) = string x
 expr12comp _ (NumExpr x) = number x
 expr12comp e (VarExpr i) = lookupVar i e
-expr12comp _ (IdtExpr i) = err $ "Name expressions only allowed in left-hand side of assignments:" ++ i
+expr12comp _ (IdtExpr i) = fatal $ "Name expressions only allowed in left-hand side of assignments:" ++ i
 expr12comp e (ObjExpr parExpr exprProps expr) = object (expr2comp e parExpr) compAttrs (expr2comp env1 expr)
   where 
     (compVars, compAttrs) = splitProps env1 exprProps
