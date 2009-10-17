@@ -49,7 +49,7 @@ expr12comp _ (StrExpr x) = string x
 expr12comp _ (NumExpr x) = number x
 expr12comp e (VarExpr i) = lookupVar i e
 expr12comp _ (IdtExpr i) = fatal $ "Name expressions only allowed in left-hand side of assignments:" ++ i
-expr12comp e (ObjExpr parExpr exprProps expr) = object (expr2comp e parExpr) compAttrs (expr2comp env1 expr)
+expr12comp e (ObjExpr parExpr exprProps expr) = object (expr2comp e parExpr) compAttrs compVars (expr2comp env1 expr)
   where 
     (compVars, compAttrs) = splitProps env1 exprProps
     env1 = compVars : e

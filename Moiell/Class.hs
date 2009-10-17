@@ -4,8 +4,8 @@ import qualified Data.Map as Map
 
 class Moiell c where
   
-  -- Create object from parent, map of attributes and content.
-  object :: c -> Map.Map String c -> c -> c
+  -- Create object from parent, map of attributes, map of local variables and body.
+  object :: c -> Map.Map String c -> Map.Map String c -> c -> c
   urObject :: c
 
   -- Create attributes, strings and numbers.

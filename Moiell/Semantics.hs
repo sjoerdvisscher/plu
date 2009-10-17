@@ -25,8 +25,8 @@ instance Moiell CompValue where
 
   urObject = return.O $ Ur
 
-  -- object :: Comp Value -> CompMap -> Comp Value -> Comp Value
-  object parComp attrs content = do
+  -- object :: Comp Value -> CompMap -> CompMap -> Comp Value -> Comp Value
+  object parComp attrs _ content = do
     val <- parComp
     env <- ask
     case val of
@@ -101,7 +101,7 @@ toString (S s) = return s
 toString v     = return $ show v
 
 mkFun :: (Value -> Comp a) -> (a -> Comp Value) -> Comp Value
-mkFun fx f = object urObject Map.empty $ this >>= (\(O o) -> evalAttr "_" o) >>= fx >>= f
+mkFun fx f = object urObject Map.empty Map.empty $ this >>= (\(O o) -> evalAttr "_" o) >>= fx >>= f
 
 
 globalObject :: Object

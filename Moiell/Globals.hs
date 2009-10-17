@@ -37,7 +37,7 @@ globalScope = Map.fromList
   ]
 
 liftC :: Moiell c => c -> c
-liftC = object urObject Map.empty
+liftC = object urObject Map.empty Map.empty
 
 unit :: Moiell c => c
 unit = liftC unit
