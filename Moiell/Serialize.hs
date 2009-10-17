@@ -1,65 +1,103 @@
-{-# LANGUAGE TypeSynonymInstances #-}
 module Moiell.Serialize where
 
 import Moiell.Class
+import Moiell.Expr
 
+import Data.Monoid
 import qualified Data.Map as Map
 import Data.List (intersperse)
 
-instance Moiell String where
+data Src = S [String] | A Src Src | I String
+
+instance Moiell Src where
   
-  -- Create object from parent, map of attributes and content.
-  object "{}" attrs vars content = "{" ++ showSeq (attrsToSeq attrs ++ varsToSeq vars ++ [content]) ++ "}"
-  object par  attrs vars content = par ++ object "{}" attrs vars content
-  urObject = "{}"
+  -- Create object from parent, map of attributes, map of local variables and body.
+  object par attrs vars body = one $ 
+    (if show par == "{}" then "" else show par) ++
+    (showSrcInBrackets "{" "}" True $
+      mconcat [attrsToSrc attrs, varsToSrc vars, body])
+  urObject = one $ "{}"
 
   -- Create attributes, strings and numbers.
-  attrib a = "@" ++ a
-  string s = show s
-  number n = show n
+  attrib a = one $ "@" ++ a
+  string s = one $ show s
+  number n = one $ show n
   
   -- Function application.
-  apply f x = f ++ "(" ++ x ++ ")"
+  apply f x = A f x
   
   -- Create call-by-value functions.
-  eachC  f = "eachC(c -> c)"
-  eachCS f = "eachCS(String -> c)"
-  eachCN f = f 3.14
+  eachC  f = one $ "eachC(c -> c)"
+  eachCS f = one $ "eachCS(String -> c)"
+  eachCN f = one $ "eachCN(Double -> c)"
     
   -- The empty sequence.
-  empty = "()"
+  empty = mempty
   -- Concat sequences.
-  csum = concat . intersperse "; "
+  csum = mconcat
   -- Sequence eliminator, taking:
   -- an empty value
   -- a function taking head and tail computations
   -- the computation to eliminate
-  split e ht c = "split(" ++ c ++ ")"
+  split e ht c = one $ "split" ++ showInBrackets c
   
   -- Throw catchable errors.
-  throw e = "throw(" ++ e ++ ")"
+  throw e = one $ "throw" ++ showInBrackets e
   -- Catch catchable errors.
-  catch b h = "(" ++ b ++ ") catch (" ++ h ++ ")"
+  catch b h = one $ showInBrackets b ++ " catch " ++ showInBrackets h
   -- Throw fatal errors.
   fatal = error
   
   -- Get the current scope object.
-  this = "$"
+  this = I "$"
   -- Evaluate the given computation in the parent scope.
-  inParent c = "^(" ++ c ++ ")"
+  inParent = id
   
   -- Run the computation.
-  run = id
+  run = show
   
   -- Look the identifier up in the environment.
   lookupVar i [] = fatal ("Undeclared variable: " ++ i)
-  lookupVar i (e:p) = maybe ("^" ++ lookupVar i p) (const i) $ Map.lookup i e
+  lookupVar i (e:p) = maybe (inParent $ lookupVar i p) (const (I i)) $ Map.lookup i e
 
-attrsToSeq :: Map.Map String String -> [String]
-attrsToSeq = map (\(i, c) -> i ++ " = " ++ c) . Map.toList
 
-varsToSeq :: Map.Map String String -> [String]
-varsToSeq = map (\(i, c) -> "?" ++ i ++ " = " ++ c) . Map.toList
+one :: String -> Src
+one s = S [s]
 
-showSeq :: [String] -> String
-showSeq = concat . intersperse "; "
+instance Show Src where
+  show (S [])  = "()"
+  show (S [x]) = x
+  show (S xs)  = showSrcInBrackets "(" ")" False (S xs)
+  show (A (A f x) y) = "(" ++ show x ++ " " ++ show f ++ " " ++ show y ++ ")"
+  show (A f (S xs)) = show f ++ showSrcInBrackets "(" ")" False (S xs)
+  show (A f (I i)) = i ++ "." ++ show f
+  show (A f x) = let s = show x in if head s == '(' then show f ++ s else s ++ "." ++ show f
+  show (I i) = i
+
+instance Monoid Src where
+  mempty = S []
+  mappend l (S []) = l
+  mappend (S []) r = r
+  mappend l r = S (toList l ++ toList r)
+
+toList :: Src -> [String]
+toList (S xs) = xs
+toList a = [show a]
+
+attrsToSrc :: Map.Map String Src -> Src
+attrsToSrc = S . map (\(i, c) -> i ++ " = " ++ show c) . Map.toList
+
+varsToSrc :: Map.Map String Src -> Src
+varsToSrc = S . map (\(i, c) -> "?" ++ i ++ " = " ++ show c) . Map.toList
+
+showInBrackets :: Src -> String
+showInBrackets = showSrcInBrackets "(" ")" False
+
+showSrcInBrackets :: String -> String -> Bool -> Src -> String
+showSrcInBrackets o c isBlock src = let strs = toList src in
+  if (isBlock && length strs > 1) || any (elem '\n') strs 
+  then o ++ "\n" ++ concat (map indent strs) ++ c
+  else o ++ concat (intersperse "; " strs) ++ c
+
+indent :: String -> String
+indent = unlines . map ("  " ++) . lines

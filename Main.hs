@@ -12,7 +12,7 @@ f :: String -> IO ()
 f n = (compileFile (n ++ ".moi") :: IO (Comp Value)) >>= putStr . run
 
 dr :: String -> IO ()
-dr s = putStrLn $ run (compileString s :: String)
+dr s = putStrLn $ run (compileString s :: Src)
 
 df :: String -> IO ()
-df n = (compileFile (n ++ ".moi") :: IO String) >>= putStrLn . run
+df n = (compileFile (n ++ ".moi") :: IO Src) >>= putStrLn . run

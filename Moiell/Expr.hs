@@ -90,7 +90,7 @@ instance Show Expr1 where
   show (NumExpr i) = show i
   show (StrExpr s) = show s
   show (ThisExpr)  = "$"
-  show (UrExpr)    = "Ur"
+  show (UrExpr)    = "{}"
   show (ObjExpr p env e) = showExpr p ++ showListInBrackets "{" "}" True (map showBinding (Map.assocs env) ++ map show e)
   show (AppExpr [AppExpr o l] r) = showListInBrackets "(" ")" False [showExpr l ++ " " ++ showExpr o ++ " " ++ showExpr r]
   show (AppExpr o e) = showExpr o ++ showExprInBrackets e
