@@ -1,18 +1,28 @@
-{-# LANGUAGE TypeSynonymInstances #-}
-module Moiell.Semantics (CompValue) where
+{-# LANGUAGE TypeSynonymInstances, MultiParamTypeClasses #-}
+module Moiell.CPS (CPS) where
 
 import Moiell.Class
+
 import MonadLibSplit
 import Data.Maybe (listToMaybe)
 import qualified Data.Map as Map
 
-type Comp       = ReaderT TReader (ExceptionT TException (ChoiceT Id))
+
+data CPSData a = CPSData 
+  { yield  :: a -> TResult
+  , done   :: TResult
+  , throwC :: TException -> TResult
+  , choice :: CPSComp a -> CPSComp a -> TResult
+  }
+data CPSComp a = CPS { runCPS :: CPSData a -> TResult }
+type Comp = ReaderT TReader CPSComp
+
+type CPS        = Comp Value
 type TException = Value
 type TReader    = [Object]
 type TIdent     = String
 type TResult    = [Either TException Value]
-type CompMap    = Map.Map TIdent (Comp Value)
-type CompValue  = Comp Value
+type CompMap    = Map.Map TIdent CPS
 
 data Value = N Double | S String | A TIdent | O Object
 data Object = Ur | Object { parent :: Object, attrs :: CompMap, oEnv :: TReader }
@@ -21,11 +31,56 @@ inAttr = "_"
 outAttr = "()"
 
 
-instance Moiell CompValue where
+instance Functor CPSComp where
+  fmap  = liftM
+  
+instance Monad CPSComp where
+  return x = CPS $ \c -> yield c x
+  (CPS m) >>= f = CPS $ \c -> m $
+    c{ yield  = \a -> runCPS (f a) c 
+     , choice = \l r -> choice c (l >>= f) (r >>= f)
+     }
 
+instance MonadPlus CPSComp where
+  mzero = CPS $ \c -> done c
+  mplus l r = CPS $ \c -> choice c l r
+
+-- instance ReaderM CPSComp TReader where
+--   ask = CPS $ \c -> yield c (env c)
+--   
+-- instance RunReaderM CPSComp TReader where
+--   local i (CPS m) = CPS $ \c -> m c{ env = i }
+
+instance ExceptionM CPSComp TException where
+  raise e = CPS $ \c -> throwC c e
+
+instance RunExceptionM CPSComp TException where
+  try (CPS m) = CPS $ \c -> m $
+    c{ yield = \a -> yield c (Right a)
+     , throwC = \e -> yield c (Left e)
+     , choice = \l r -> choice c (try l) (try r)
+     }
+
+instance RunMonadPlus CPSComp where
+  msplit (CPS m) = CPS $ \c -> 
+    let c1 = c{
+         yield  = \a -> yield c (Just (a, mzero))
+       , done   = yield c Nothing
+       , choice = 
+         let ch l r = runCPS l $ c{
+            yield = \a -> yield c (Just (a, r))
+          , done  = runCPS r c1
+          , choice = \ll lr -> ch ll (mplus lr r)
+          }
+         in ch
+       }
+    in m c1
+   
+instance Moiell CPS where
+  
   urObject = return.O $ Ur
 
-  -- object :: Comp Value -> CompMap -> CompMap -> Comp Value -> Comp Value
+  -- object :: CPS -> CompMap -> CompMap -> CPS -> CPS
   object parComp attrs _ content = do
     val <- parComp
     env <- ask
@@ -41,7 +96,7 @@ instance Moiell CompValue where
   eachCS = mkFun toString
   eachCN = mkFun toDouble
 
-  -- apply :: Comp Value -> Comp Value -> Comp Value
+  -- apply :: CPS -> CPS -> CPS
   apply fs xs = do
     f <- fs
     case f of
@@ -75,19 +130,19 @@ instance Moiell CompValue where
     local (tail env) c
 
   
-  -- run :: Comp Value -> String
+  -- run :: CPS -> String
   run = showResult . runWithEnv globalObject
 
 
 
-evalAttr :: TIdent -> Object -> Comp Value
+evalAttr :: TIdent -> Object -> CPS
 evalAttr attrName obj = local (obj : oEnv obj) (lookupAttr attrName obj)
 
-lookupAttr :: TIdent -> Object -> Comp Value
+lookupAttr :: TIdent -> Object -> CPS
 lookupAttr attrName Ur = fail ("Could not find attribute: " ++ attrName)
 lookupAttr attrName obj = Map.findWithDefault (lookupAttr attrName $ parent obj) attrName $ attrs obj
 
-setAttr :: TIdent -> Comp Value -> Object -> Object
+setAttr :: TIdent -> CPS -> Object -> Object
 setAttr attrName attrValue obj = obj{ attrs = Map.insert attrName attrValue $ attrs obj }
 
 
@@ -100,17 +155,23 @@ toString :: Value -> Comp String
 toString (S s) = return s
 toString v     = return $ show v
 
-mkFun :: (Value -> Comp a) -> (a -> Comp Value) -> Comp Value
+mkFun :: (Value -> Comp a) -> (a -> CPS) -> CPS
 mkFun fx f = object urObject Map.empty Map.empty $ this >>= (\(O o) -> evalAttr "_" o) >>= fx >>= f
 
 
 globalObject :: Object
 globalObject = Ur
 
-runWithEnv :: Object -> Comp Value -> [Either TException Value]
-runWithEnv env = runId . findAll . runExceptionT . runReaderT [env]
+runWithEnv :: Object -> CPS -> TResult
+runWithEnv globalScope = flip runCPS c . runReaderT [globalScope] where
+  c = CPSData 
+        { yield  = \a -> [Right a]
+        , done   = [] 
+        , throwC = \a -> [Left a]
+        , choice = \l r -> runCPS l c ++ runCPS r c
+        }
 
-showResult :: [Either TException Value] -> String
+showResult :: TResult -> String
 showResult = unlines . map (either (("Err: " ++) . show) show)
 
 instance Show Value where

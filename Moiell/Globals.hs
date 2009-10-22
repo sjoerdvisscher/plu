@@ -22,6 +22,7 @@ globalScope = Map.fromList
   , ("-", mkBinOp (-))
   , ("*", mkBinOp (*))
   , ("/", mkBinOp (/))
+  , ("~", eachCN (\x -> number $ -x))
   , ("div", mkBinOp (\l r -> fst (l `divMod'` r)))
   , ("mod", mkBinOp (\l r -> snd (l `divMod'` r)))
   , ("++", eachCS (\l -> eachCS (\r -> string $ l ++ r)))
