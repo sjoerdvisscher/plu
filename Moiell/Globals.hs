@@ -56,21 +56,21 @@ eachS :: Moiell c => c
 eachS = eachC (\body -> eachC (\arg -> body `apply` arg))
 
 filterS :: Moiell c => c
-filterS = eachC (\arg -> eachC (\test -> split empty (\h t -> arg) (test `apply` arg)))
+filterS = eachC (\arg -> eachC (\test -> split empty (\_ _ -> arg) (test `apply` arg)))
   
 notS, andS, orS :: Moiell c => c
-notS = liftC $ split unit (\h t -> empty) getArg
-andS = liftC $ liftC $ split empty (\h t -> getArg) $ inParent getArg
+notS = liftC $ split unit (\_ _ -> empty) getArg
+andS = liftC $ liftC $ split empty (\_ _ -> getArg) $ inParent getArg
 orS  = liftC $ liftC $ split getArg (\h t -> csum [h, t]) $ inParent getArg
 
 filterN2 :: Moiell c => (Double -> Double -> Bool) -> c
 filterN2 op = eachCN (\a -> eachCN (\b -> if op a b then number a else empty))
 
 headS :: Moiell c => c
-headS = liftC $ split empty (\h t -> h) getArg
+headS = liftC $ split empty (\h _ -> h) getArg
 
 tailS :: Moiell c => c
-tailS = liftC $ split empty (\h t -> t) getArg
+tailS = liftC $ split empty (\_ t -> t) getArg
   
 charsS :: Moiell c => c
 charsS = eachCS $ csum . map (string . (:[]))

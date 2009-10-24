@@ -42,14 +42,13 @@ infixSeq' f prec    = do
 infixOperator       :: ParserForAST
 infixOperator       = try (inOptWS commaToken) <|> try (inWS dotInfixExpr) <?> "infix operator"
 
-compactExpr, dotInfixExpr, postfixExpr, prefixExpr, bracketPostfixExpr :: ParserForAST
-compactExpr         = commaToken <|> dotInfixExpr <?> "compact expression"
+dotInfixExpr, postfixExpr, prefixExpr, bracketPostfixExpr :: ParserForAST
 dotInfixExpr        = postfixExpr `chainl1` (flip mkApp <$ simpleToken Dot) <?> "dot expression"
 postfixExpr         = mkPostfixApp <$> prefixExpr <*> optional identToken <?> "postfix expression"
 prefixExpr          = try (mkPrefixApp <$> identToken <*> bracketPostfixExpr) <|> bracketPostfixExpr <?> "prefix expression"
 bracketPostfixExpr  = foldl bracketPostfix <$> atomExpr <*> many bracketExpr <?> "bracket postfix expression"
 
-atomExpr, bracketExpr, indentBlock, seqSeparator :: ParserForAST
+atomExpr, bracketExpr, indentBlock, seqSeparator, commaToken :: ParserForAST
 atomExpr            = choice [bracketExpr, atomToken, identToken, indentBlock]
 bracketExpr         = choice [brackets '(' ')', brackets '{' '}', brackets '[' ']'] <?> "bracket expression"
 indentBlock         = between (simpleToken Indent) (simpleToken Unindent) exprs <?> "indentation block"
@@ -74,26 +73,22 @@ mmaybe                :: (Alternative m, Monad m) => m a -> m b -> (a -> m b) ->
 mmaybe p a f          = optional p >>= maybe a f
 
 mkTokenParser :: ((SourcePos, Token) -> Maybe AST) -> ParserForAST
-mkTokenParser testTok
-  = token showTok posFromTok testTok
-  where
-    showTok (pos,t)     = show t
-    posFromTok (pos,t)  = pos
+mkTokenParser testTok = token (show . snd) fst testTok
   
 simpleToken :: Token -> ParserForAST
-simpleToken x = mkTokenParser (\(pos,t) -> if x == t then Just [] else Nothing)
+simpleToken x = mkTokenParser (\(_, t) -> if x == t then Just [] else Nothing)
 
 atomToken :: ParserForAST
 atomToken = mkTokenParser testTok where
-  testTok (pos, CharTok c)   = Just [StringLit [c]]
-  testTok (pos, StringTok c) = Just [StringLit c]
-  testTok (pos, NumberTok c) = Just [NumberLit c]
-  testTok (pos, _) = Nothing
+  testTok (_, CharTok c)   = Just [StringLit [c]]
+  testTok (_, StringTok c) = Just [StringLit c]
+  testTok (_, NumberTok c) = Just [NumberLit c]
+  testTok (_, _) = Nothing
 
 identToken :: ParserForAST
 identToken = mkTokenParser testTok where
-  testTok (pos, IdentTok c)  = Just [Ident c]
-  testTok (pos, _) = Nothing
+  testTok (_, IdentTok c)  = Just [Ident c]
+  testTok (_, _) = Nothing
 
 precedence :: AST -> Integer
 precedence [Ident "*"] = 120

@@ -1,7 +1,6 @@
 module Moiell.Serialize where
 
 import Moiell.Class
-import Moiell.Expr
 
 import Data.Monoid
 import qualified Data.Map as Map
@@ -27,9 +26,9 @@ instance Moiell Src where
   apply f x = A f x
   
   -- Create call-by-value functions.
-  eachC  f = one $ "eachC(c -> c)"
-  eachCS f = one $ "eachCS(String -> c)"
-  eachCN f = one $ "eachCN(Double -> c)"
+  eachC  _ = one $ "eachC(c -> c)"
+  eachCS _ = one $ "eachCS(String -> c)"
+  eachCN _ = one $ "eachCN(Double -> c)"
     
   -- The empty sequence.
   empty = mempty
@@ -39,7 +38,7 @@ instance Moiell Src where
   -- an empty value
   -- a function taking head and tail computations
   -- the computation to eliminate
-  split e ht c = one $ "split" ++ showInBrackets c
+  split _ _ c = one $ "split" ++ showInBrackets c
   
   -- Throw catchable errors.
   throw e = one $ "throw" ++ showInBrackets e
