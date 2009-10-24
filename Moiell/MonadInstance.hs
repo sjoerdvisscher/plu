@@ -39,7 +39,7 @@ instance MoiellMonad m => Moiell (M m) where
   
   urObject = return.O $ Ur
 
-  -- object :: CPS -> CompMap -> CompMap -> CPS -> CPS
+  -- object :: M m -> CompMap -> CompMap -> M m -> M m
   object parComp attrsMap _ content = do
     val <- parComp
     env <- ask
@@ -55,7 +55,7 @@ instance MoiellMonad m => Moiell (M m) where
   eachCS = mkFun toString
   eachCN = mkFun toDouble
 
-  -- apply :: CPS -> CPS -> CPS
+  -- apply :: M m -> M m -> M m
   apply fs xs = do
     f <- fs
     case f of
@@ -74,6 +74,7 @@ instance MoiellMonad m => Moiell (M m) where
 
   csum = msum
   empty = mzero
+  -- split :: M m -> (M m -> M m -> M m) -> M m -> M m
   split emptyC splitC c = msplit c >>= maybe emptyC (\(h, t) -> splitC (return h) t)
   
   throw e = (e >>= raise) >> mzero
@@ -89,7 +90,7 @@ instance MoiellMonad m => Moiell (M m) where
     local (tail env) c
 
   
-  -- run :: CPS -> String
+  -- run :: M m -> String
   run = showResult . runWithEnv globalObject
 
 

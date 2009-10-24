@@ -8,10 +8,10 @@ main :: IO ()
 main = f "test"
 
 r :: String -> IO ()
-r s = putStr $ run (compileString s :: M CPSComp)
+r s = putStr $ run (compileString s :: M CPS)
 
 f :: String -> IO ()
-f n = (compileFile (n ++ ".moi") :: IO (M CPSComp)) >>= putStr . run
+f n = (compileFile (n ++ ".moi") :: IO (M CPS)) >>= putStr . run
 
 dr :: String -> IO ()
 dr s = putStrLn $ run (compileString s :: Src)
