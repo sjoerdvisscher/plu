@@ -1,34 +1,26 @@
-{-# LANGUAGE TypeSynonymInstances, MultiParamTypeClasses #-}
-module Moiell.CPS (CPS) where
+{-# LANGUAGE TypeSynonymInstances, MultiParamTypeClasses, FlexibleInstances #-}
+module Moiell.CPS (CPSComp) where
 
-import Moiell.Class
+import Moiell.MonadInstance
 
-import MonadLibSplit
-import Data.Maybe (listToMaybe)
-import qualified Data.Map as Map
+import Data.Function (on)
 
 
 data CPSData a = CPSData 
-  { yield  :: a -> TResult
-  , done   :: TResult
-  , throwC :: TException -> TResult
-  , choice :: CPSComp a -> CPSComp a -> TResult
+  { yield  :: a -> TResult CPSComp
+  , done   :: TResult CPSComp
+  , throwC :: TException CPSComp -> TResult CPSComp
+  , choice :: CPSComp a -> CPSComp a -> TResult CPSComp
+  , env    :: TReader CPSComp
   }
-data CPSComp a = CPS { runCPS :: CPSData a -> TResult }
-type Comp = ReaderT TReader CPSComp
+data CPSComp a = CPS { runCPS :: CPSData a -> TResult CPSComp }
 
-type CPS        = Comp Value
-type TException = Value
-type TReader    = [Object]
-type TIdent     = String
-type TResult    = [Either TException Value]
-type CompMap    = Map.Map TIdent CPS
 
-data Value = N Double | S String | A TIdent | O Object
-data Object = Ur | Object { parent :: Object, attrs :: CompMap, oEnv :: TReader }
+runWith :: CPSData a -> CPSComp a -> CPSComp a
+runWith c1 m = CPS $ \c -> runCPS m c{ env = env c1, throwC = throwC c1 }
 
-inAttr = "_"
-outAttr = "()"
+runChoice :: CPSData b -> (CPSComp a -> CPSComp b) -> CPSComp a -> CPSComp a -> TResult CPSComp
+runChoice c1 f = choice c1 `on` (runWith c1 . f)
 
 
 instance Functor CPSComp where
@@ -37,28 +29,28 @@ instance Functor CPSComp where
 instance Monad CPSComp where
   return x = CPS $ \c -> yield c x
   (CPS m) >>= f = CPS $ \c -> m $
-    c{ yield  = \a -> runCPS (f a) c 
-     , choice = \l r -> choice c (l >>= f) (r >>= f)
+    c{ yield  = \a -> runCPS (f a) c
+     , choice = runChoice c (>>= f) 
      }
 
 instance MonadPlus CPSComp where
   mzero = CPS $ \c -> done c
-  mplus l r = CPS $ \c -> choice c l r
+  mplus l r = CPS $ \c -> runChoice c id l r
 
--- instance ReaderM CPSComp TReader where
---   ask = CPS $ \c -> yield c (env c)
---   
--- instance RunReaderM CPSComp TReader where
---   local i (CPS m) = CPS $ \c -> m c{ env = i }
+instance ReaderM CPSComp (TReader CPSComp) where
+  ask = CPS $ \c -> yield c (env c)
 
-instance ExceptionM CPSComp TException where
+instance RunReaderM CPSComp (TReader CPSComp) where
+  local i (CPS m) = CPS $ \c -> m c{ env = i }
+
+instance ExceptionM CPSComp (TException CPSComp) where
   raise e = CPS $ \c -> throwC c e
 
-instance RunExceptionM CPSComp TException where
+instance RunExceptionM CPSComp (TException CPSComp) where
   try (CPS m) = CPS $ \c -> m $
     c{ yield = \a -> yield c (Right a)
      , throwC = \e -> yield c (Left e)
-     , choice = \l r -> choice c (try l) (try r)
+     , choice = runChoice c try
      }
 
 instance RunMonadPlus CPSComp where
@@ -76,110 +68,12 @@ instance RunMonadPlus CPSComp where
        }
     in m c1
    
-instance Moiell CPS where
-  
-  urObject = return.O $ Ur
-
-  -- object :: CPS -> CompMap -> CompMap -> CPS -> CPS
-  object parComp attrs _ content = do
-    val <- parComp
-    env <- ask
-    case val of
-      O par -> return.O $ setAttr outAttr content $ Object par attrs env
-      x     -> fail ("Cannot extend from a non-object: " ++ show x)
-
-  attrib = return . A
-  string = return . S
-  number = return . N
-  
-  eachC f = mkFun return (f . return)
-  eachCS = mkFun toString
-  eachCN = mkFun toDouble
-
-  -- apply :: CPS -> CPS -> CPS
-  apply fs xs = do
-    f <- fs
-    case f of
-    
-      O obj -> do
-        env <- ask
-        evalAttr outAttr $ setAttr inAttr (local env xs) obj
-      
-      A attrName -> do
-        x <- xs
-        case x of
-          O obj -> evalAttr attrName obj
-          v     -> fail ("Attribute lookup applied to non-object: " ++ show v)
-        
-      v     -> fail ("Cannot apply a literal value: " ++ show v)
-
-  csum = msum
-  empty = mzero
-  split emptyC splitC c = msplit c >>= maybe emptyC (\(h, t) -> splitC (return h) t)
-  
-  throw e = (e >>= raise) >> mzero
-  c `catch` h = try c >>= either (apply h . return) return
-  fatal = fail
-
-  this = do
-    env <- ask
-    return.O $ head env
-  
-  inParent c = do
-    env <- ask
-    local (tail env) c
-
-  
-  -- run :: CPS -> String
-  run = showResult . runWithEnv globalObject
-
-
-
-evalAttr :: TIdent -> Object -> CPS
-evalAttr attrName obj = local (obj : oEnv obj) (lookupAttr attrName obj)
-
-lookupAttr :: TIdent -> Object -> CPS
-lookupAttr attrName Ur = fail ("Could not find attribute: " ++ attrName)
-lookupAttr attrName obj = Map.findWithDefault (lookupAttr attrName $ parent obj) attrName $ attrs obj
-
-setAttr :: TIdent -> CPS -> Object -> Object
-setAttr attrName attrValue obj = obj{ attrs = Map.insert attrName attrValue $ attrs obj }
-
-
-toDouble :: Value -> Comp Double
-toDouble (N n) = return n
-toDouble (S s) = maybe mzero (return . fst) (listToMaybe (reads s))
-toDouble _     = mzero
-
-toString :: Value -> Comp String
-toString (S s) = return s
-toString v     = return $ show v
-
-mkFun :: (Value -> Comp a) -> (a -> CPS) -> CPS
-mkFun fx f = object urObject Map.empty Map.empty $ this >>= (\(O o) -> evalAttr "_" o) >>= fx >>= f
-
-
-globalObject :: Object
-globalObject = Ur
-
-runWithEnv :: Object -> CPS -> TResult
-runWithEnv globalScope = flip runCPS c . runReaderT [globalScope] where
-  c = CPSData 
-        { yield  = \a -> [Right a]
-        , done   = [] 
-        , throwC = \a -> [Left a]
-        , choice = \l r -> runCPS l c ++ runCPS r c
-        }
-
-showResult :: TResult -> String
-showResult = unlines . map (either (("Err: " ++) . show) show)
-
-instance Show Value where
-  show (N n) = show n
-  show (S s) = show s
-  show (O o) = show o
-  show (A i) = "{Attribute " ++ i ++ "}" 
-  
-instance Show Object where
-  show Ur = "{}"
-  show (Object par prps e) = show par ++ "{" ++ show (Map.keys prps) ++ "}"
+instance RunWithEnv CPSComp where
+  runWithEnv globalScope = flip runCPS c where
+    c = CPSData 
+          { yield  = \a -> [Right a]
+          , done   = [] 
+          , throwC = \a -> [Left a]
+          , choice = \l r -> runCPS l c ++ runCPS r c
+          , env    = [globalScope]
+          }
