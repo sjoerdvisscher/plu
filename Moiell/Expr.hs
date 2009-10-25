@@ -28,32 +28,34 @@ parseFile fileName = do
 
 type Scope = Map.Map Expr1 Expr
 type Free  = Set.Set String
-data Env   = Env { getExpr :: Expr, getBounds :: Scope, getFrees :: Free } deriving (Show)
+data Env   = Env { getExpr :: Expr, getBounds :: Scope, getFrees :: Map.Map String Integer } deriving (Show)
 
 instance Monoid Env where
-  mempty = Env [] Map.empty Set.empty
+  mempty = Env [] Map.empty Map.empty
   Env lExpr lBound lFree `mappend` Env rExpr rBound rFree = 
-    Env (lExpr ++ rExpr) (Map.unionWithKey noDupes lBound rBound) (Set.union lFree rFree) where
+    Env (lExpr ++ rExpr) (Map.unionWithKey noDupes lBound rBound) (Map.unionWith (+) lFree rFree) where
       noDupes k _ _ = fail ("Duplicate variable definition:" ++ show k)
 
 ast2Expr :: AST -> (Expr, Free)
-ast2Expr ast = (expr, free) where
+ast2Expr ast = (expr, Map.keysSet free) where
   Env expr _ free = mkScope $ ast2Env ast
 
 ast2Env :: AST -> Env
 ast2Env xs = mconcat (map ast12Env xs)
 
 ast12Env :: AST1 -> Env
-ast12Env (StringLit s) = Env [StrExpr s] Map.empty Set.empty
-ast12Env (NumberLit n) = Env [NumExpr n] Map.empty Set.empty
+ast12Env (StringLit s) = Env [StrExpr s] Map.empty Map.empty
+ast12Env (NumberLit n) = Env [NumExpr n] Map.empty Map.empty
 
-ast12Env (                 Ident "$") = Env [ThisExpr ] Map.empty Set.empty
-ast12Env (                 Ident  i ) = Env [VarExpr i] Map.empty (Set.singleton i)
-ast12Env (App [Ident "?"] [Ident  i]) = Env [IdtExpr i] Map.empty (Set.singleton i)
+ast12Env (                 Ident "$") = Env [ThisExpr ] Map.empty Map.empty
+ast12Env (                 Ident  i ) = Env [VarExpr i] Map.empty (Map.singleton i 1)
+ast12Env (App [Ident "?"] [Ident  i]) = Env [IdtExpr i] Map.empty Map.empty
 
 ast12Env (App [Brackets '(' ')' _] arg) = mkScope  $ ast2Env arg
 ast12Env (App [Brackets '{' '}' _] arg) = mkObject [UrExpr] $ ast2Env arg
-ast12Env (App [App [Brackets '{' '}' _] arg] par) = mkObject (getExpr $ ast2Env par) $ ast2Env arg
+ast12Env (App [App [Brackets '{' '}' _] arg] par) = mkObject parent $ (ast2Env arg `mappend` parentEnv') where
+  Env parent bounds frees = ast2Env par
+  parentEnv' = Env [] bounds frees
 
 ast12Env (App [App [Ident "="] l] r) = assign lExpr rExpr (Env [] lBound lFree `mappend` Env [] rBound rFree)
   where
@@ -73,8 +75,21 @@ ast12Env (App ops args) = Env [AppExpr opExprs argExprs] bounds frees
 mkScope :: Env -> Env
 mkScope arg = if Map.null (getBounds arg) then arg else lower $ mkObject [UrExpr] arg
 mkObject :: Expr -> Env -> Env
-mkObject parent (Env argExprs bounds frees) = 
-  Env [ObjExpr parent bounds argExprs] Map.empty (Set.difference frees $ Set.map getVarName $ Map.keysSet bounds)
+mkObject parent (Env argExprs bounds frees) = obj where
+  obj = Env [ObjExpr parent bounds' argExprs] Map.empty frees'
+  frees' = Map.difference frees $ Map.mapKeys getVarName bounds
+  bounds' = Map.fromList . concatMap toAttr . Map.toList $ bounds
+  toAttr b@(e, [AppExpr [VarExpr "Attr"] _]) = [b]
+  toAttr b@(e, val) = 
+    if Map.findWithDefault 0 (getVarName e) frees <= 1
+      then [b] -- let val be inlined
+      else [(e, attrOfThis),  (attrVar, val), (attrIdt, attr)] where
+        attrName = "@" ++ getVarName e
+        attrVar  = VarExpr attrName
+        attrIdt  = IdtExpr attrName
+        attr     = [AppExpr [VarExpr "Attr"] [StrExpr attrName]]
+        attrOfThis = [AppExpr [attrVar] [ThisExpr]]
+  
 
 lower :: Env -> Env
 lower (Env expr b f) = Env [AppExpr expr []] b f

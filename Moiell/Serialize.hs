@@ -14,7 +14,7 @@ instance Moiell Src where
   object par attrs vars body = one $ 
     (if show par == "{}" then "" else show par) ++
     (showSrcInBrackets "{" "}" True $
-      mconcat [attrsToSrc attrs, varsToSrc vars, body])
+      mconcat [attrsToSrc attrs, body])
   urObject = one $ "{}"
 
   -- Create attributes, strings and numbers.
@@ -23,6 +23,8 @@ instance Moiell Src where
   number n = one $ show n
   
   -- Function application.
+  apply (I "Attr") (S ['"':y]) = I (init y)
+  apply f@(I ('@':y)) (I "$") = f
   apply f x = A f x
   
   -- Create call-by-value functions.
@@ -57,7 +59,8 @@ instance Moiell Src where
   
   -- Look the identifier up in the environment.
   lookupVar i [] = fatal ("Undeclared variable: " ++ i)
-  lookupVar i (e:p) = maybe (inParent $ lookupVar i p) (const (I i)) $ Map.lookup i e
+  lookupVar i [e] = maybe (inParent $ lookupVar i []) (const (I i)) $ Map.lookup i e
+  lookupVar i (e:p) = maybe (inParent $ lookupVar i p) (id) $ Map.lookup i e
 
 
 one :: String -> Src
