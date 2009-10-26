@@ -27,11 +27,6 @@ instance Moiell Src where
   apply f@(I ('@':y)) (I "$") = f
   apply f x = A f x
   
-  -- Create call-by-value functions.
-  eachC  _ = one $ "eachC(c -> c)"
-  eachCS _ = one $ "eachCS(String -> c)"
-  eachCN _ = one $ "eachCN(Double -> c)"
-    
   -- The empty sequence.
   empty = mempty
   -- Concat sequences.
@@ -54,6 +49,25 @@ instance Moiell Src where
   -- Evaluate the given computation in the parent scope.
   inParent = id
   
+  builtIns = Map.fromList $ map (\s -> (s, one "{ Built-in function }")) $
+    [ "+"
+    , "-"
+    , "*"
+    , "/"
+    , "~"
+    , "div"
+    , "mod"
+    , "++"
+    , "<"
+    , "<="
+    , ">"
+    , ">="
+    , "=="
+    , "!="
+    , "chars"
+    , "Attr"
+    ]
+
   -- Run the computation.
   run = show
   

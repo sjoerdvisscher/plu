@@ -16,11 +16,6 @@ class Moiell c where
   -- Function application.
   apply :: c -> c -> c
   
-  -- Create call-by-value functions.
-  eachC :: (c -> c) -> c
-  eachCS :: (String -> c) -> c
-  eachCN :: (Double -> c) -> c
-    
   -- The empty sequence.
   empty :: c
   -- Concat sequences.
@@ -42,6 +37,9 @@ class Moiell c where
   this :: c
   -- Evaluate the given computation in the parent scope.
   inParent :: c -> c 
+  
+  -- The built-in functions
+  builtIns :: Map.Map String c
   
   -- Run the computation.
   run :: c -> String

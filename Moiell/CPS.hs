@@ -40,7 +40,7 @@ instance ReaderM CPS (TReader CPS) where
   ask       = CPS $ \c -> yield c (env c)
 
 instance RunReaderM CPS (TReader CPS) where
-  local i m = CPS $ \c -> unCPS m c{ env = i }
+  local i m = CPS $ \c -> unCPS m c{ env = i, choice = runChoice c (local i) }
 
 instance ExceptionM CPS (TException CPS) where
   raise e   = CPS $ \c -> throwC c e

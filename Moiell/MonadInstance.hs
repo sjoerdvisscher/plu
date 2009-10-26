@@ -51,9 +51,24 @@ instance MoiellMonad m => Moiell (M m) where
   string = return . S
   number = return . N
   
-  eachC f = mkFun return (f . return)
-  eachCS = mkFun toString
-  eachCN = mkFun toDouble
+  builtIns = Map.fromList 
+    [ ("+", mkBinOp (+))
+    , ("-", mkBinOp (-))
+    , ("*", mkBinOp (*))
+    , ("/", mkBinOp (/))
+    , ("~", mkFun toDouble (\x -> number $ -x))
+    , ("div", mkBinOp (\l r -> fst (l `divMod'` r)))
+    , ("mod", mkBinOp (\l r -> snd (l `divMod'` r)))
+    , ("++", mkFun toString (\l -> mkFun toString (\r -> string $ l ++ r)))
+    , ("<", filterN2 (<))
+    , ("<=", filterN2 (<=))
+    , (">", filterN2 (>))
+    , (">=", filterN2 (>=))
+    , ("==", filterN2 (==))
+    , ("!=", filterN2 (/=))
+    , ("chars", charsS)
+    , ("Attr", mkFun toString attrib)
+    ]
 
   -- apply :: M m -> M m -> M m
   apply fs xs = do
@@ -121,6 +136,21 @@ toString v     = return $ show v
 mkFun :: MoiellMonad m => (Value m -> m a) -> (a -> M m) -> M m
 mkFun fx f = object urObject Map.empty Map.empty $ this >>= (\(O o) -> evalAttr "_" o) >>= fx >>= f
 
+eachC :: MoiellMonad m => (M m -> M m) -> M m
+eachC f = mkFun return (f . return)
+
+mkBinOp :: MoiellMonad m => (Double -> Double -> Double) -> M m
+mkBinOp op = mkFun toDouble (\l -> mkFun toDouble (\r -> number $ op l r))
+
+filterN2 :: MoiellMonad m => (Double -> Double -> Bool) -> M m
+filterN2 op = mkFun toDouble (\a -> mkFun toDouble (\b -> if op a b then number a else empty))
+
+charsS :: MoiellMonad m => M m
+charsS = mkFun toString $ csum . map (string . (:[]))
+
+divMod' :: Double -> Double -> (Double, Double)
+divMod' n d = (f, n - f * d) where f = fromIntegral $ floor $ n / d
+
 
 globalObject :: Object m
 globalObject = Ur
@@ -128,6 +158,18 @@ globalObject = Ur
 showResult :: TResult m -> String
 showResult = unlines . map (either (("Err: " ++) . show) show)
 
+instance Eq (Value m) where
+  (N a) == (N b) = a == b
+  (S a) == (S b) = a == b
+  (A a) == (A b) = a == b
+  _ == _ = False
+
+instance Ord (Value m) where
+  (N a) `compare` (N b) = a `compare` b
+  (S a) `compare` (S b) = a `compare` b
+  (A a) `compare` (A b) = a `compare` b
+  _ `compare` _ = error "Cannot compare"
+  
 instance Show (Value m) where
   show (N n) = show n
   show (S s) = show s
