@@ -30,7 +30,7 @@ instance Functor CPS where
   
 instance Monad CPS where
   return x  = CPS $ \c -> yield c x
-  m >>= f   = CPS $ \c -> unCPS m c{ yield  = runCPS c . f, choice = runChoice c (>>= f) }
+  m >>= f   = CPS $ \c -> unCPS m c{ yield = runCPS c . f, choice = runChoice c (>>= f) }
 
 instance MonadPlus CPS where
   mzero     = CPS $ \c -> done c
@@ -46,7 +46,7 @@ instance ExceptionM CPS (TException CPS) where
   raise e   = CPS $ \c -> throwC c e
 
 instance RunExceptionM CPS (TException CPS) where
-  try m     = CPS $ \c -> unCPS m c{ yield  = yield c . Right, throwC = yield c . Left, choice = runChoice c try }
+  try m     = CPS $ \c -> unCPS m c{ yield = yield c . Right, throwC = yield c . Left, choice = runChoice c try }
 
 instance RunMonadPlus CPS where
   msplit m = CPS $ \c -> let
@@ -58,4 +58,4 @@ instance RunMonadPlus CPS where
 instance RunWithEnv CPS where
   runWithEnv globalScope = r where 
     r = runCPS c
-    c = CPSData { done = [], yield = return . Right, choice = (++) `on` r, throwC = return . Left, env = [globalScope] }
+    c = CPSData { done = [], yield = return . Right, choice = (++) `on` r, throwC = return . Left, env = globalScope }

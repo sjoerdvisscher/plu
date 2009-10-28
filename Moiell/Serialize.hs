@@ -24,7 +24,7 @@ instance Moiell Src where
   
   -- Function application.
   apply (I "Attr") (S ['"':y]) = I (init y)
-  apply f@(I ('@':y)) (I "$") = f
+  apply f@(I ('!':y)) (I "$") = f
   apply f x = A f x
   
   -- The empty sequence.

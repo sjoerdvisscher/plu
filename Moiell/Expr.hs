@@ -67,10 +67,9 @@ ast12Env (App [App [Ident "="] l] r) = assign lExpr rExpr (Env [] lBound lFree `
 
 ast12Env (App ops args) = Env [AppExpr opExprs argExprs] bounds frees
   where
-    Env opExprs opB opF = ast2Env ops
-    Env argExprs argB argF = ast2Env args
-    bounds = opB `mappend` argB
-    frees  = opF `mappend` argF
+    opEnv@(Env opExprs _ _) = ast2Env ops
+    argEnv@(Env argExprs _ _) = ast2Env args
+    Env _ bounds frees = opEnv `mappend` argEnv
 
 mkScope :: Env -> Env
 mkScope arg = if Map.null (getBounds arg) then arg else lower $ mkObject [UrExpr] arg
@@ -84,7 +83,7 @@ mkObject parent (Env argExprs bounds frees) = obj where
     if Map.findWithDefault 0 (getVarName e) frees <= 1
       then [b] -- let val be inlined
       else [(e, attrOfThis),  (attrVar, val), (attrIdt, attr)] where
-        attrName = "@" ++ getVarName e
+        attrName = "!" ++ getVarName e
         attrVar  = VarExpr attrName
         attrIdt  = IdtExpr attrName
         attr     = [AppExpr [VarExpr "Attr"] [StrExpr attrName]]

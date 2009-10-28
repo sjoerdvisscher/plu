@@ -21,7 +21,7 @@ type M m = m (Value m)
 
 type TIdent       = String
 type TException m = Value m
-type TReader    m = [Object m]
+type TReader    m = Object m
 type TResult    m = [Either (TException m) (Value m)]
 type CompMap    m = Map.Map TIdent (M m)
 
@@ -98,11 +98,11 @@ instance MoiellMonad m => Moiell (M m) where
 
   this = do
     env <- ask
-    return.O $ head env
+    return.O $ env
   
   inParent c = do
     env <- ask
-    local (tail env) c
+    local (oEnv env) c
 
   
   -- run :: M m -> String
@@ -114,7 +114,7 @@ class RunWithEnv m where
 
 
 evalAttr :: MoiellMonad m => TIdent -> Object m -> M m
-evalAttr attrName obj = local (obj : oEnv obj) (lookupAttr attrName obj)
+evalAttr attrName obj = local obj (lookupAttr attrName obj)
 
 lookupAttr :: MoiellMonad m => TIdent -> Object m -> M m
 lookupAttr attrName Ur = fail ("Could not find attribute: " ++ attrName)
