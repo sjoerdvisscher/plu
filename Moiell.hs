@@ -13,6 +13,7 @@ import Moiell.Globals
 
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Data.Foldable (foldMap)
 
 type CompMap c = Map.Map String c
 type Env c = [CompMap c]
@@ -40,7 +41,7 @@ checkVariables globs (expr, frees) =
 
   
 expr2comp :: Moiell c => Env c -> Expr -> c
-expr2comp e xs = csum (map (expr12comp e) xs)
+expr2comp = foldMap . expr12comp
 
 expr12comp :: Moiell c => Env c -> Expr1 -> c
 expr12comp _ (ThisExpr ) = this

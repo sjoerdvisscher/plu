@@ -6,6 +6,7 @@ import Data.Monoid
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.List (intersperse)
+import Data.Foldable (foldMap)
 
 type Expr = [Expr1]
 data Expr1 
@@ -41,7 +42,7 @@ ast2Expr ast = (expr, Map.keysSet free) where
   Env expr _ free = mkScope $ ast2Env ast
 
 ast2Env :: AST -> Env
-ast2Env xs = mconcat (map ast12Env xs)
+ast2Env = foldMap ast12Env
 
 ast12Env :: AST1 -> Env
 ast12Env (StringLit s) = Env [StrExpr s] Map.empty Map.empty

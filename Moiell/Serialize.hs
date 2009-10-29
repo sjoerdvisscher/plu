@@ -27,10 +27,6 @@ instance Moiell Src where
   apply f@(I ('!':y)) (I "$") = f
   apply f x = A f x
   
-  -- The empty sequence.
-  empty = mempty
-  -- Concat sequences.
-  csum = mconcat
   -- Sequence eliminator, taking:
   -- an empty value
   -- a function taking head and tail computations

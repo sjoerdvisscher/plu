@@ -14,6 +14,8 @@ where
 
 import Moiell.Class
 import MonadLibSplit
+import Data.Monoid
+import Data.Foldable (foldMap)
 import Data.Maybe (listToMaybe)
 import qualified Data.Map as Map
 
@@ -87,8 +89,6 @@ instance MoiellMonad m => Moiell (M m) where
         
       v     -> fail ("Cannot apply a literal value: " ++ show v)
 
-  csum = msum
-  empty = mzero
   -- split :: M m -> (M m -> M m -> M m) -> M m -> M m
   split emptyC splitC c = msplit c >>= maybe emptyC (\(h, t) -> splitC (return h) t)
   
@@ -108,7 +108,10 @@ instance MoiellMonad m => Moiell (M m) where
   -- run :: M m -> String
   run = showResult . runWithEnv globalObject
 
-
+instance MoiellMonad m => Monoid (M m) where
+  mempty = mzero
+  mappend = mplus
+  
 class RunWithEnv m where
   runWithEnv :: Object m -> M m -> TResult m
 
@@ -143,10 +146,10 @@ mkBinOp :: MoiellMonad m => (Double -> Double -> Double) -> M m
 mkBinOp op = mkFun toDouble (\l -> mkFun toDouble (\r -> number $ op l r))
 
 filterN2 :: MoiellMonad m => (Double -> Double -> Bool) -> M m
-filterN2 op = mkFun toDouble (\a -> mkFun toDouble (\b -> if op a b then number a else empty))
+filterN2 op = mkFun toDouble (\a -> mkFun toDouble (\b -> if op a b then number a else mzero))
 
 charsS :: MoiellMonad m => M m
-charsS = mkFun toString $ csum . map (string . (:[]))
+charsS = mkFun toString $ foldMap (string . (:[]))
 
 divMod' :: Double -> Double -> (Double, Double)
 divMod' n d = (f, n - f * d) where f = fromIntegral $ floor $ n / d

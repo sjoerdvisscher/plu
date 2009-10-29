@@ -1,8 +1,9 @@
 module Moiell.Class where
 
+import Data.Monoid
 import qualified Data.Map as Map
 
-class Moiell c where
+class Monoid c => Moiell c where
   
   -- Create object from parent, map of attributes, map of local variables and body.
   object :: c -> Map.Map String c -> Map.Map String c -> c -> c
@@ -16,10 +17,6 @@ class Moiell c where
   -- Function application.
   apply :: c -> c -> c
   
-  -- The empty sequence.
-  empty :: c
-  -- Concat sequences.
-  csum :: [c] -> c
   -- Sequence eliminator, taking:
   -- an empty value
   -- a function taking head and tail computations

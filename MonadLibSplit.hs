@@ -362,20 +362,20 @@ instance (Monad m)
 instance (MonadPlus m)
            => Alternative (ContT i m)       where (<|>) = mplus; empty = mzero
 
-instance (MonadPlus m)
-           => Monoid (IdT m a)           where mappend = mplus; mempty = mzero
-instance (MonadPlus m)
-           => Monoid (ReaderT i m a)     where mappend = mplus; mempty = mzero
-instance (MonadPlus m)
-           => Monoid (StateT i m a)      where mappend = mplus; mempty = mzero
-instance (MonadPlus m,Monoid i)
-           => Monoid (WriterT i m a)     where mappend = mplus; mempty = mzero
-instance (MonadPlus m)
-           => Monoid (ExceptionT i m a)  where mappend = mplus; mempty = mzero
-instance (Monad m)
-           => Monoid (ChoiceT m a)       where mappend = mplus; mempty = mzero
-instance (MonadPlus m)
-           => Monoid (ContT i m a)       where mappend = mplus; mempty = mzero
+-- instance (MonadPlus m)
+--            => Monoid (IdT m a)           where mappend = mplus; mempty = mzero
+-- instance (MonadPlus m)
+--            => Monoid (ReaderT i m a)     where mappend = mplus; mempty = mzero
+-- instance (MonadPlus m)
+--            => Monoid (StateT i m a)      where mappend = mplus; mempty = mzero
+-- instance (MonadPlus m,Monoid i)
+--            => Monoid (WriterT i m a)     where mappend = mplus; mempty = mzero
+-- instance (MonadPlus m)
+--            => Monoid (ExceptionT i m a)  where mappend = mplus; mempty = mzero
+-- instance (Monad m)
+--            => Monoid (ChoiceT m a)       where mappend = mplus; mempty = mzero
+-- instance (MonadPlus m)
+--            => Monoid (ContT i m a)       where mappend = mplus; mempty = mzero
 
 
 -- $Monadic_Value_Recursion

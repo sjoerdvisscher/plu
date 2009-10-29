@@ -32,27 +32,27 @@ getArg :: Moiell c => c
 getArg = apply (attrib "_") this
 
 commaS :: Moiell c => c
-commaS = liftC $ liftC $ csum [inParent getArg, getArg]
+commaS = liftC $ liftC $ mappend (inParent getArg) getArg
   
 eachS :: Moiell c => c
 eachS = eachC (\body -> eachC (\arg -> body `apply` arg))
 
 filterS :: Moiell c => c
-filterS = eachC (\arg -> eachC (\test -> split empty (\_ _ -> arg) (test `apply` arg)))
+filterS = eachC (\arg -> eachC (\test -> split mempty (\_ _ -> arg) (test `apply` arg)))
   
 notS, andS, orS :: Moiell c => c
-notS = liftC $ split unit (\_ _ -> empty) getArg
-andS = liftC $ liftC $ split empty (\_ _ -> getArg) $ inParent getArg
-orS  = liftC $ liftC $ split getArg (\h t -> csum [h, t]) $ inParent getArg
+notS = liftC $ split unit (\_ _ -> mempty) getArg
+andS = liftC $ liftC $ split mempty (\_ _ -> getArg) $ inParent getArg
+orS  = liftC $ liftC $ split getArg (\h t -> mappend h t) $ inParent getArg
 
 headS :: Moiell c => c
-headS = liftC $ split empty (\h _ -> h) getArg
+headS = liftC $ split mempty (\h _ -> h) getArg
 
 tailS :: Moiell c => c
-tailS = liftC $ split empty (\_ t -> t) getArg
+tailS = liftC $ split mempty (\_ t -> t) getArg
 
 eachC :: Moiell c => (c -> c) -> c
 eachC f = liftC $ each f getArg
 
 each :: Moiell c => (c -> c) -> c -> c
-each f = split empty (\h t -> csum [f h, each f t])
+each f = split mempty (\h t -> mappend (f h) (each f t))
