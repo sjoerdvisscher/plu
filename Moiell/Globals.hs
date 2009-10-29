@@ -12,6 +12,8 @@ globalScope = mappend builtIns $ Map.fromList
   , (",", commaS)
   , ("unit", unit)
   , ("Each", eachS)
+  , ("Then", thenS)
+  , ("Else", elseS)
   , ("And", andS)
   , ("Or", orS)
   , ("Not",  notS)
@@ -40,10 +42,12 @@ eachS = eachC (\body -> eachC (\arg -> body `apply` arg))
 filterS :: Moiell c => c
 filterS = eachC (\arg -> eachC (\test -> split mempty (\_ _ -> arg) (test `apply` arg)))
   
-notS, andS, orS :: Moiell c => c
-notS = liftC $ split unit (\_ _ -> mempty) getArg
-andS = liftC $ liftC $ split mempty (\_ _ -> getArg) $ inParent getArg
-orS  = liftC $ liftC $ split getArg (\h t -> mappend h t) $ inParent getArg
+notS, andS, orS, thenS, elseS :: Moiell c => c
+notS  = liftC $ split unit (\_ _ -> mempty) getArg
+andS  = liftC $ liftC $ split mempty (\_ _ -> getArg) $ inParent getArg
+orS   = liftC $ liftC $ split getArg (\h t -> mappend h t) $ inParent getArg
+thenS = liftC $ liftC $ split mempty (\_ _ -> liftC (inParent getArg)) $ inParent getArg
+elseS = liftC $ liftC $ split getArg (\h _ -> apply h mempty) $ inParent getArg
 
 headS :: Moiell c => c
 headS = liftC $ split mempty (\h _ -> h) getArg

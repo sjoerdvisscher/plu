@@ -3,7 +3,7 @@
 
   # QSort sorts a sequence
   ?QSort = ?x,?xs =>
-    xs And (QSort(xs < x); x; QSort(xs >= x)) Or x
+    xs Then (QSort(xs < x); x; QSort(xs >= x)) Else x
 
   QSort(5,2,3,6,4) Show 5
   
@@ -38,7 +38,7 @@
   "Interleave:"
   
   ?Interleave = ?x,?xs => ?ys =>
-    x And (x; ys Interleave xs) Or ys
+    x Then (x; ys Interleave xs) Else ys
   
   ?evens = 0, 2 + evens
   ?odds = 1, 2 + odds
@@ -49,10 +49,10 @@
 # Helper functions.
 
 ?Take = ?x,?xs => ?n ->
-  (n != 0) And (x; xs Take n - 1)
+  (n != 0) Then (x; xs Take n - 1) Else ()
 
 ?Join = ?x,?xs => ?sep ->
-  xs And (x ++ sep ++ (xs Join sep)) Or x
+  xs Then (x ++ sep ++ (xs Join sep)) Else x
 
 ?Show = ?xs => ?max -> xs Take max Join ", "
 ?show = ?xs -> ?max -> xs() Show max

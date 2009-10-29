@@ -65,4 +65,4 @@ doc.xml
 # Helper functions
 # Concat a sequence of strings.
 ?Concat = ?x,?xs => 
-  x And (x ++ Concat(xs)) Or ""
+  x Then (x ++ Concat(xs)) Else ""
