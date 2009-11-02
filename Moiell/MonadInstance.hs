@@ -23,7 +23,7 @@ type M m = m (Value m)
 
 type TIdent       = String
 type TException m = Value m
-type TReader    m = Object m
+type TReader    m = [Object m]
 type TResult    m = [Either (TException m) (Value m)]
 type CompMap    m = Map.Map TIdent (M m)
 
@@ -98,11 +98,11 @@ instance MoiellMonad m => Moiell (M m) where
 
   this = do
     env <- ask
-    return.O $ env
+    return.O $ head env
   
   inParent c = do
     env <- ask
-    local (oEnv env) c
+    local (tail env) c
 
   
   -- run :: M m -> String
@@ -117,11 +117,12 @@ class RunWithEnv m where
 
 
 evalAttr :: MoiellMonad m => TIdent -> Object m -> M m
-evalAttr attrName obj = local obj (lookupAttr attrName obj)
+evalAttr attrName obj = lookupAttr attrName obj obj
 
-lookupAttr :: MoiellMonad m => TIdent -> Object m -> M m
-lookupAttr attrName Ur = fail ("Could not find attribute: " ++ attrName)
-lookupAttr attrName obj = Map.findWithDefault (lookupAttr attrName $ parent obj) attrName $ attrs obj
+lookupAttr :: MoiellMonad m => TIdent -> Object m -> Object m -> M m
+lookupAttr attrName _    Ur = fail ("Could not find attribute: " ++ attrName)
+lookupAttr attrName orig obj = maybe (lookupAttr attrName orig $ parent obj) (local (orig : oEnv obj)) $ 
+  Map.lookup attrName $ attrs obj
 
 setAttr :: MoiellMonad m => TIdent -> M m -> Object m -> Object m
 setAttr attrName attrValue obj = obj{ attrs = Map.insert attrName attrValue $ attrs obj }
@@ -137,7 +138,7 @@ toString (S s) = return s
 toString v     = return $ show v
 
 mkFun :: MoiellMonad m => (Value m -> m a) -> (a -> M m) -> M m
-mkFun fx f = object urObject Map.empty Map.empty $ this >>= (\(O o) -> evalAttr "_" o) >>= fx >>= f
+mkFun fx f = object urObject Map.empty Map.empty $ this >>= (\(O o) -> evalAttr inAttr o) >>= fx >>= f
 
 eachC :: MoiellMonad m => (M m -> M m) -> M m
 eachC f = mkFun return (f . return)

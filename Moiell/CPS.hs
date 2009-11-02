@@ -58,4 +58,4 @@ instance RunMonadPlus CPS where
 instance RunWithEnv CPS where
   runWithEnv globalScope = r where 
     r = runCPS c
-    c = CPSData { done = [], yield = return . Right, choice = (++) `on` r, throwC = return . Left, env = globalScope }
+    c = CPSData { done = [], yield = return . Right, choice = (++) `on` r, throwC = return . Left, env = [globalScope] }

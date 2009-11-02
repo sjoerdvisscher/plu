@@ -7,7 +7,7 @@ newtype Comp a = C { unC :: ReaderT (TReader Comp) (ExceptionT (TException Comp)
   deriving (Monad, MonadPlus, RunMonadPlus)
 
 instance RunWithEnv Comp where
-  runWithEnv env = runId . findAll . runExceptionT . runReaderT env . unC
+  runWithEnv env = runId . findAll . runExceptionT . runReaderT [env] . unC
   
 instance ReaderM Comp (TReader Comp) where
   ask = C ask
