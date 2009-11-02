@@ -80,11 +80,12 @@ mkObject parent (Env argExprs bounds frees) = obj where
   frees' = Map.difference frees $ Map.mapKeys getVarName bounds
   bounds' = Map.fromList . concatMap toAttr . Map.toList $ bounds
   toAttr b@(e, [AppExpr [VarExpr "Attr"] _]) = [b]
-  toAttr b@(e, val) = 
-    if Map.findWithDefault 0 (getVarName e) frees <= 1
+  toAttr b@(VarExpr _, val) = [b]
+  toAttr b@(IdtExpr e, val) = 
+    if Map.findWithDefault 0 e frees <= 1
       then [b] -- let val be inlined
-      else [(e, attrOfThis),  (attrVar, val), (attrIdt, attr)] where
-        attrName = "!" ++ getVarName e
+      else [(IdtExpr e, attrOfThis),  (attrVar, val), (attrIdt, attr)] where
+        attrName = "!" ++ e
         attrVar  = VarExpr attrName
         attrIdt  = IdtExpr attrName
         attr     = [AppExpr [VarExpr "Attr"] [StrExpr attrName]]
