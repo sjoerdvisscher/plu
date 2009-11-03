@@ -1,0 +1,26 @@
+@isEmpty; @insert; @contains
+
+?Set = {
+  ?s = $
+  insert = ?n =>
+    (s contains n) Then s Else
+      Set{ 
+        contains = ?m -> (n == m) Or (s contains m)
+        isEmpty = () 
+      }
+}
+
+?union = ?sets =>
+  Set{
+    contains = ?n -> sets contains n
+    isEmpty = sets All isEmpty
+  }
+
+?Empty = Set{ contains = ?n -> (); isEmpty = $ }
+
+?s = Empty insert 3 insert (4,5)
+?t = Empty insert (1,2)
+union(s, t) contains (1,2,3,4,5)
+union(s, t, Empty).isEmpty
+
+?All = ?xs => ?p -> Not(xs.(?x -> Not(x.p)))
