@@ -36,7 +36,7 @@ withPos p         = (,) <$> getPosition <*> p
 indentedLines     = concat <$> many (emptyLine <|> indentedLine) <?> "lines"
 indentedLine      = try (indentation *> (indentedBlock <|> afterIndentation)) <?> "line"
 emptyLine         = newLine <?> "empty line"
-newLine           = try (([] <$ many (oneOf " \t")) <<:> withPos (NL <$ char '\n')) <?> "new-line"
+newLine           = try (([] <$ many (oneOf " \t")) <<:> withPos (NL <$ optional (char '\r') <* char '\n')) <?> "new-line"
 
 indentedBlock     = preserveState (
                       moreIndentation <:>> 
